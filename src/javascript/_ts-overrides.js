@@ -1,35 +1,32 @@
-Ext.override(Ext.grid.column.Check,{
-    // Note: class names are not placed on the prototype bc renderer scope
-    // is not in the header.
-    renderer : function(value, meta, record) {
-        console.log('renderer',value,meta,this.disabled);
-        if (typeof value == 'object'){
-          var link_text= Ext.String.format('{0}', value.FormattedID); 
-          this.disabled = true; 
-          return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ value.ObjectID, text: link_text});
+Ext.override(Ext.layout.container.Editor, {
+    calculate: function(ownerContext) {
+        console.log(ownerContext);
+        var me = this,
+            owner = me.owner,
+            autoSize = owner.autoSize,
+            fieldWidth,
+            fieldHeight;
+            
+        if (autoSize === true) {
+            autoSize = me.autoSizeDefault;
         }
+
         
-        if (value === 'Exemption Approved'){
-            meta.tdCls = '';
-            this.disabled = true;  
-            return value; 
+        if (autoSize) {
+            fieldWidth  = me.getDimension(owner, autoSize.width,  'getWidth',  owner.width);
+            fieldHeight = me.getDimension(owner, autoSize.height, 'getHeight', owner.height);
         }
 
-        if (value === true || value === 'Required'){
-            //someone set this
-            value = 'Required';
-        } else {
-            value = 'Exemption Requested';
+        if (ownerContext.childItems[0]){
+            ownerContext.childItems[0].setSize(fieldWidth, fieldHeight);
         }
-        var cssPrefix = Ext.baseCSSPrefix,
-            cls = cssPrefix + 'grid-checkcolumn';
 
-        if (this.disabled) {
-            meta.tdCls += ' ' + this.disabledCls;
-        }
-        if (value === 'Required' || value === true) {
-            cls += ' ' + cssPrefix + 'grid-checkcolumn-checked';
-        }
-        return '<img class="' + cls + '" src="' + Ext.BLANK_IMAGE_URL + '"/>';
+        
+        ownerContext.setWidth(fieldWidth);
+        ownerContext.setHeight(fieldHeight);
+
+        
+        ownerContext.setContentSize(fieldWidth || owner.field.getWidth(),
+                                    fieldHeight || owner.field.getHeight());
     }
 });

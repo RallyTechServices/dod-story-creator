@@ -15,12 +15,8 @@
     margin-right: 5px;
     cursor: pointer;
 }
-.editable-status {
-	
-},
-.btn-true {
+.approved: {
+	color: 'red';
 	background-color: 'green'
-},
-.btn-false {
-	background-color: 'red'
+	
 }
