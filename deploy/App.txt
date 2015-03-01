@@ -3,11 +3,11 @@
 <head>
     <title>Feature Definition of Done Story Creator</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Mar 01 2015 16:54:14 GMT-0700 (MST) -->
+    <!--  Build Date: Sun Mar 01 2015 16:57:34 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Mar 01 2015 16:54:14 GMT-0700 (MST)";
-        var CHECKSUM = 25346486788;
+        var APP_BUILD_DATE = "Sun Mar 01 2015 16:57:34 GMT-0700 (MST)";
+        var CHECKSUM = 25454465798;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -718,14 +718,18 @@ Ext.define('CustomApp', {
                     }
                 }, this);
                 
-                Deft.Promise.all(promises).then({
-                    scope: this,
-                    success: function(messages){
-                        this.logger.log('_updateFeatures promises completed');
-                        Rally.ui.notify.Notifier.show({message: messages.join("\n")});
-                        deferred.resolve();
-                    }
-                });
+                if (promises.length == 0){
+                    deferred.resolve();
+                } else {
+                    Deft.Promise.all(promises).then({
+                        scope: this,
+                        success: function(messages){
+                            this.logger.log('_updateFeatures promises completed');
+                            Rally.ui.notify.Notifier.show({message: messages.join("\n")});
+                            deferred.resolve();
+                        }
+                    });
+                }
             }
         });
         return deferred;  

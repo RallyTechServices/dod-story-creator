@@ -185,14 +185,18 @@ Ext.define('CustomApp', {
                     }
                 }, this);
                 
-                Deft.Promise.all(promises).then({
-                    scope: this,
-                    success: function(messages){
-                        this.logger.log('_updateFeatures promises completed');
-                        Rally.ui.notify.Notifier.show({message: messages.join("\n")});
-                        deferred.resolve();
-                    }
-                });
+                if (promises.length == 0){
+                    deferred.resolve();
+                } else {
+                    Deft.Promise.all(promises).then({
+                        scope: this,
+                        success: function(messages){
+                            this.logger.log('_updateFeatures promises completed');
+                            Rally.ui.notify.Notifier.show({message: messages.join("\n")});
+                            deferred.resolve();
+                        }
+                    });
+                }
             }
         });
         return deferred;  
