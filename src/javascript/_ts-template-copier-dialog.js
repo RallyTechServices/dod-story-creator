@@ -99,7 +99,10 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
                     if (artifact_to_copy){
                         var fields = this._getNewArtifactFields(artifact_to_copy, cr.overrideFields);
                         this.logger.log('_copyTemplates', fields, artifact_to_copy);
-                        promises.push(function(){this._createArtifact(this.model,fields);});
+                        var fn = function(){
+                            this._createArtifact(this.model,fields);
+                        }
+                        promises.push(fn);
                     } else {
                         //todo alert user that there is a problem
                     }
@@ -152,21 +155,20 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
      },
      _createArtifact: function(model, fields) {
          var deferred = Ext.create('Deft.Deferred');
-
+         this.logger.log('_createArtifact start');
          var record = Ext.create(model, fields);
-         record.save({
-             callback: function(newArtifact, operation){
-                 if (operation.wasSuccessful()) {
-                     this.logger.log('_createArtifact successful', fields, operation);
-                     deferred.resolve(newArtifact);
-                 } else {
-                     this.logger.log('_createArtifact failed', operation);
-                     deferred.resolve({});
-                 }
+         record.save().then({
+             scope: this,
+             success: function(newArtifact){
+                 this.logger.log('_createArtifact successful', fields, operation);
+                 deferred.resolve(newArtifact);
              },
-             scope: this
+             failure: function(operation){
+                 this.logger.log('_createArtifact failed', operation);
+                 deferred.resolve({});
+             }
          });
-         return deferred;
+         return deferred.promise;
      },
      _fetchTemplates: function(model, fetch, filters){
          var deferred = Ext.create('Deft.Deferred');

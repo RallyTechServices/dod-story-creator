@@ -124,20 +124,20 @@ Ext.define('CustomApp', {
         }
 
         this.logger.log('_update',features_to_update);
-        this._createStories(features_to_update);                
 
-//        this._updateFeatures(features_to_update).then({
-//            scope: this,
-//            success: function(){
-//            }
-//        });
+        this._updateFeatures(features_to_update).then({
+            scope: this,
+            success: function(){
+                this._createStories(features_to_update);                
+            }
+        
+        });
     },
     _createStories: function(featuresToUpdate){
         //Create Stories 
         var code_deployment_val = this.down('#cb-release').getValue();
         var copy_requests = [];
         Ext.each(featuresToUpdate, function(f){
-            console.log(f);
             if (f.newStories.length > 0){
                 Ext.each(f.newStories, function(ns){
                     var cr = {};
@@ -159,12 +159,6 @@ Ext.define('CustomApp', {
                 copyRequests: copy_requests,
                 templateArtifactKeyField: this.storyTypeField,
                 title: "Create Stories",
-                listeners: {
-                    scope: this,
-                    destroy: function(){
-                        this._updateFeatures(featuresToUpdate);
-                    }
-                }
             });
             dlg_stories.show();
         }
@@ -189,14 +183,14 @@ Ext.define('CustomApp', {
                 var promises = []; 
                 Ext.each(featureObjs, function(obj){
                     if (!_.isEmpty(obj.updatedFields)){
-                        promises.push(this._updateFeature(model, obj));
+                        promises.push(function(){this._updateFeature(model, obj)});
                     }
                 }, this);
                 
                 if (promises.length == 0){
                     deferred.resolve();
                 } else {
-                    Deft.Promise.all(promises).then({
+                    Deft.Chain.sequence(promises).then({
                         scope: this,
                         success: function(messages){
                             this.logger.log('_updateFeatures promises completed');

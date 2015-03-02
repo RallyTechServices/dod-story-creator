@@ -3,11 +3,11 @@
 <head>
     <title>Feature Definition of Done Story Creator</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Mar 01 2015 17:25:20 GMT-0700 (MST) -->
+    <!--  Build Date: Sun Mar 01 2015 19:21:07 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Mar 01 2015 17:25:20 GMT-0700 (MST)";
-        var CHECKSUM = 26158594437;
+        var APP_BUILD_DATE = "Sun Mar 01 2015 19:21:07 GMT-0700 (MST)";
+        var CHECKSUM = 26056075521;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -419,7 +419,10 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
                     if (artifact_to_copy){
                         var fields = this._getNewArtifactFields(artifact_to_copy, cr.overrideFields);
                         this.logger.log('_copyTemplates', fields, artifact_to_copy);
-                        promises.push(function(){this._createArtifact(this.model,fields);});
+                        var fn = function(){
+                            this._createArtifact(this.model,fields);
+                        }
+                        promises.push(fn);
                     } else {
                         //todo alert user that there is a problem
                     }
@@ -472,21 +475,20 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
      },
      _createArtifact: function(model, fields) {
          var deferred = Ext.create('Deft.Deferred');
-
+         this.logger.log('_createArtifact start');
          var record = Ext.create(model, fields);
-         record.save({
-             callback: function(newArtifact, operation){
-                 if (operation.wasSuccessful()) {
-                     this.logger.log('_createArtifact successful', fields, operation);
-                     deferred.resolve(newArtifact);
-                 } else {
-                     this.logger.log('_createArtifact failed', operation);
-                     deferred.resolve({});
-                 }
+         record.save().then({
+             scope: this,
+             success: function(newArtifact){
+                 this.logger.log('_createArtifact successful', fields, operation);
+                 deferred.resolve(newArtifact);
              },
-             scope: this
+             failure: function(operation){
+                 this.logger.log('_createArtifact failed', operation);
+                 deferred.resolve({});
+             }
          });
-         return deferred;
+         return deferred.promise;
      },
      _fetchTemplates: function(model, fetch, filters){
          var deferred = Ext.create('Deft.Deferred');
@@ -669,20 +671,20 @@ Ext.define('CustomApp', {
         }
 
         this.logger.log('_update',features_to_update);
-        this._createStories(features_to_update);                
 
-//        this._updateFeatures(features_to_update).then({
-//            scope: this,
-//            success: function(){
-//            }
-//        });
+        this._updateFeatures(features_to_update).then({
+            scope: this,
+            success: function(){
+                this._createStories(features_to_update);                
+            }
+        
+        });
     },
     _createStories: function(featuresToUpdate){
         //Create Stories 
         var code_deployment_val = this.down('#cb-release').getValue();
         var copy_requests = [];
         Ext.each(featuresToUpdate, function(f){
-            console.log(f);
             if (f.newStories.length > 0){
                 Ext.each(f.newStories, function(ns){
                     var cr = {};
@@ -704,12 +706,6 @@ Ext.define('CustomApp', {
                 copyRequests: copy_requests,
                 templateArtifactKeyField: this.storyTypeField,
                 title: "Create Stories",
-                listeners: {
-                    scope: this,
-                    destroy: function(){
-                        this._updateFeatures(featuresToUpdate);
-                    }
-                }
             });
             dlg_stories.show();
         }
@@ -734,14 +730,14 @@ Ext.define('CustomApp', {
                 var promises = []; 
                 Ext.each(featureObjs, function(obj){
                     if (!_.isEmpty(obj.updatedFields)){
-                        promises.push(this._updateFeature(model, obj));
+                        promises.push(function(){this._updateFeature(model, obj)});
                     }
                 }, this);
                 
                 if (promises.length == 0){
                     deferred.resolve();
                 } else {
-                    Deft.Promise.all(promises).then({
+                    Deft.Chain.sequence(promises).then({
                         scope: this,
                         success: function(messages){
                             this.logger.log('_updateFeatures promises completed');
