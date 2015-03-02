@@ -100,7 +100,15 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
                         var fields = this._getNewArtifactFields(artifact_to_copy, cr.overrideFields);
                         this.logger.log('_copyTemplates', fields, artifact_to_copy);
                         var fn = function(){
-                            this._createArtifact(this.model,fields);
+                            var deferred = Ext.create('Deft.Deferred');
+                            this._createArtifact(this.model,fields).then({
+                                scope: this,
+                                success: function(msg){
+                                    deferred.resolve(msg);
+                                    
+                                }
+                            });
+                            return deferred;  
                         }
                         promises.push(fn);
                     } else {
@@ -112,9 +120,12 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
                 if (promises.length > 0){
                     Deft.Chain.sequence(promises, this).then({
                         scope: this,
-                        success: function(artifactCount){
-                            this.logger.log('_copyTemplates Success', artifactCount);
+                        success: function(msgs){
+                            this.logger.log('_copyTemplates createArtifacts Success', msgs);
                             deferred.resolve();
+                        },
+                        failure: function(){
+                            this.logger.log('_copyTemplates, createArtifact failure');
                         }
                     });
                 }
@@ -159,13 +170,13 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
          var record = Ext.create(model, fields);
          record.save().then({
              scope: this,
-             success: function(newArtifact){
-                 this.logger.log('_createArtifact successful', newArtifact);
-                 deferred.resolve(newArtifact);
+             success: function(result){
+                 this.logger.log('_createArtifact successful');
+                 deferred.resolve(result.get('FormattedID'));
              },
              failure: function(operation){
-                 this.logger.log('_createArtifact failed', operation);
-                 deferred.resolve({});
+                 this.logger.log('_createArtifact failed');
+                 deferred.resolve(operation.getError());
              }
          });
          return deferred.promise;
