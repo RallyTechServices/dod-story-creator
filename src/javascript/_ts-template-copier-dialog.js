@@ -160,7 +160,7 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
          record.save().then({
              scope: this,
              success: function(newArtifact){
-                 this.logger.log('_createArtifact successful', fields, operation);
+                 this.logger.log('_createArtifact successful', newArtifact);
                  deferred.resolve(newArtifact);
              },
              failure: function(operation){
