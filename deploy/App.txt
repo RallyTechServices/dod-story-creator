@@ -3,11 +3,11 @@
 <head>
     <title>Feature Definition of Done Story Creator</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Mar 01 2015 17:15:44 GMT-0700 (MST) -->
+    <!--  Build Date: Sun Mar 01 2015 17:25:20 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Mar 01 2015 17:15:44 GMT-0700 (MST)";
-        var CHECKSUM = 25953658210;
+        var APP_BUILD_DATE = "Sun Mar 01 2015 17:25:20 GMT-0700 (MST)";
+        var CHECKSUM = 26158594437;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -669,12 +669,13 @@ Ext.define('CustomApp', {
         }
 
         this.logger.log('_update',features_to_update);
-        this._updateFeatures(features_to_update).then({
-            scope: this,
-            success: function(){
-                this._createStories(features_to_update);                
-            }
-        });
+        this._createStories(features_to_update);                
+
+//        this._updateFeatures(features_to_update).then({
+//            scope: this,
+//            success: function(){
+//            }
+//        });
     },
     _createStories: function(featuresToUpdate){
         //Create Stories 
@@ -702,7 +703,13 @@ Ext.define('CustomApp', {
             var dlg_stories = Ext.create('Rally.technicalservices.dialog.TemplateCopier',{
                 copyRequests: copy_requests,
                 templateArtifactKeyField: this.storyTypeField,
-                title: "Create Stories"
+                title: "Create Stories",
+                listeners: {
+                    scope: this,
+                    destroy: function(){
+                        this._updateFeatures(featuresToUpdate);
+                    }
+                }
             });
             dlg_stories.show();
         }

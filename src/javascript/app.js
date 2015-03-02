@@ -124,12 +124,13 @@ Ext.define('CustomApp', {
         }
 
         this.logger.log('_update',features_to_update);
-        this._updateFeatures(features_to_update).then({
-            scope: this,
-            success: function(){
-                this._createStories(features_to_update);                
-            }
-        });
+        this._createStories(features_to_update);                
+
+//        this._updateFeatures(features_to_update).then({
+//            scope: this,
+//            success: function(){
+//            }
+//        });
     },
     _createStories: function(featuresToUpdate){
         //Create Stories 
@@ -157,7 +158,13 @@ Ext.define('CustomApp', {
             var dlg_stories = Ext.create('Rally.technicalservices.dialog.TemplateCopier',{
                 copyRequests: copy_requests,
                 templateArtifactKeyField: this.storyTypeField,
-                title: "Create Stories"
+                title: "Create Stories",
+                listeners: {
+                    scope: this,
+                    destroy: function(){
+                        this._updateFeatures(featuresToUpdate);
+                    }
+                }
             });
             dlg_stories.show();
         }
