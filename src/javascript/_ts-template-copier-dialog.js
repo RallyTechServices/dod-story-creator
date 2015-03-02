@@ -60,15 +60,25 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
         
         this._fetchTemplates(this.templateModel, this.templateCopyFields, this.templateFilters).then({
             scope: this,
-            success: this._copyTemplates
+            success: function(){
+                    this._copyTemplates.then({
+                        scope: this,
+                        success: function(){
+                            this.destroy();
+                        }
+                });
+            }
         });
         
-        this.destroy();
+       // this.destroy();
     },
     _copyTemplates: function(totalTemplates){
+        var deferred = Ext.create('Deft.Deferred');
+        
         this.logger.log('_copyTemplates', totalTemplates, this.copyRequests, this.templateArtifactHash);
         if (totalTemplates == 0){
             //Alert the user that they might need permissions to the main project.
+            deferred.resolve();
             return;
         }
         
@@ -77,8 +87,6 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
             success: function(model){
                 this.logger.log('modelCreated')
                 this.model = model;  
-
-                
                 var promises = []; 
                 
                 Ext.each(this.copyRequests, function(cr){
@@ -95,17 +103,20 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
                         //todo alert user that there is a problem
                     }
                 },this);
+                
                 this.logger.log('promises', promises.length);
                 if (promises.length > 0){
                     Deft.Chain.sequence(promises, this).then({
                         scope: this,
                         success: function(artifactCount){
                             this.logger.log('_copyTemplates Success', artifactCount);
+                            deferred.resolve();
                         }
                     });
                 }
             }
-        });   
+        });  
+        return deferred; 
     },
 
     _getNewArtifactFields: function(artifactToCopy, overrideFields) {
