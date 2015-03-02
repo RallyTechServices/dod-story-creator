@@ -156,7 +156,8 @@ Ext.define('CustomApp', {
         if (copy_requests.length > 0){
             var dlg_stories = Ext.create('Rally.technicalservices.dialog.TemplateCopier',{
                 copyRequests: copy_requests,
-                templateArtifactKeyField: this.storyTypeField
+                templateArtifactKeyField: this.storyTypeField,
+                title: "Create Stories"
             });
             dlg_stories.show();
         }

@@ -5,6 +5,7 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
     autoShow: true,
     draggable: true,
     width: 300,
+    modal: true,
     config: {
         title: 'Create Stories',
         /**
@@ -60,12 +61,12 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
         
         this._fetchTemplates(this.templateModel, this.templateCopyFields, this.templateFilters).then({
             scope: this,
-            success: function(){
-                    this._copyTemplates.then({
-                        scope: this,
-                        success: function(){
-                            this.destroy();
-                        }
+            success: function(totalTemplates){
+                this._copyTemplates(totalTemplates).then({
+                    scope: this,
+                    success: function(){
+                        this.destroy();
+                    }
                 });
             }
         });
@@ -213,7 +214,7 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
             },{
                 xtype: 'rallybutton',
                 itemId: 'cancelButton',
-                text: 'Cancel',
+                text: 'Not Now',
                 cls: 'secondary small',
                 ui: 'link',
                 scope: this,

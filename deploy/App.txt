@@ -3,11 +3,11 @@
 <head>
     <title>Feature Definition of Done Story Creator</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Mar 01 2015 17:08:26 GMT-0700 (MST) -->
+    <!--  Build Date: Sun Mar 01 2015 17:15:44 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Mar 01 2015 17:08:26 GMT-0700 (MST)";
-        var CHECKSUM = 25812840108;
+        var APP_BUILD_DATE = "Sun Mar 01 2015 17:15:44 GMT-0700 (MST)";
+        var CHECKSUM = 25953658210;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -325,6 +325,7 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
     autoShow: true,
     draggable: true,
     width: 300,
+    modal: true,
     config: {
         title: 'Create Stories',
         /**
@@ -380,12 +381,12 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
         
         this._fetchTemplates(this.templateModel, this.templateCopyFields, this.templateFilters).then({
             scope: this,
-            success: function(){
-                    this._copyTemplates.then({
-                        scope: this,
-                        success: function(){
-                            this.destroy();
-                        }
+            success: function(totalTemplates){
+                this._copyTemplates(totalTemplates).then({
+                    scope: this,
+                    success: function(){
+                        this.destroy();
+                    }
                 });
             }
         });
@@ -533,7 +534,7 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
             },{
                 xtype: 'rallybutton',
                 itemId: 'cancelButton',
-                text: 'Cancel',
+                text: 'Not Now',
                 cls: 'secondary small',
                 ui: 'link',
                 scope: this,
@@ -700,7 +701,8 @@ Ext.define('CustomApp', {
         if (copy_requests.length > 0){
             var dlg_stories = Ext.create('Rally.technicalservices.dialog.TemplateCopier',{
                 copyRequests: copy_requests,
-                templateArtifactKeyField: this.storyTypeField
+                templateArtifactKeyField: this.storyTypeField,
+                title: "Create Stories"
             });
             dlg_stories.show();
         }
