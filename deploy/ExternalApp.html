@@ -3,10 +3,10 @@
 <head>
     <title>Feature Definition of Done Story Creator</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Mar 01 2015 19:23:23 GMT-0700 (MST) -->
+    <!--  Build Date: Sun Mar 01 2015 19:29:41 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Mar 01 2015 19:23:23 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Sun Mar 01 2015 19:29:41 GMT-0700 (MST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -737,7 +737,7 @@ Ext.define('CustomApp', {
                 if (promises.length == 0){
                     deferred.resolve();
                 } else {
-                    Deft.Chain.sequence(promises).then({
+                    Deft.Chain.sequence(promises, this).then({
                         scope: this,
                         success: function(messages){
                             this.logger.log('_updateFeatures promises completed');

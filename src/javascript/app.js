@@ -190,7 +190,7 @@ Ext.define('CustomApp', {
                 if (promises.length == 0){
                     deferred.resolve();
                 } else {
-                    Deft.Chain.sequence(promises).then({
+                    Deft.Chain.sequence(promises, this).then({
                         scope: this,
                         success: function(messages){
                             this.logger.log('_updateFeatures promises completed');
