@@ -3,10 +3,10 @@
 <head>
     <title>Feature Definition of Done Story Creator</title>
     <!--  (c) 2013 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Mar 01 2015 20:34:07 GMT-0700 (MST) -->
+    <!--  Build Date: Mon Mar 09 2015 15:21:35 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Mar 01 2015 20:34:07 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Mon Mar 09 2015 15:21:35 GMT-0700 (PDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -45,6 +45,10 @@
 	color: 'red';
 	background-color: 'green'
 	
+}
+
+.rightbutton {
+	align: 'right';
 }
     </style>
 

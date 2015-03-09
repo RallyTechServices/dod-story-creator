@@ -3,11 +3,11 @@
 <head>
     <title>Feature Definition of Done Story Creator</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Mar 01 2015 20:34:06 GMT-0700 (MST) -->
+    <!--  Build Date: Mon Mar 09 2015 15:21:34 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Mar 01 2015 20:34:06 GMT-0700 (MST)";
-        var CHECKSUM = 26497850480;
+        var APP_BUILD_DATE = "Mon Mar 09 2015 15:21:34 GMT-0700 (PDT)";
+        var CHECKSUM = 31227084882;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -354,15 +354,12 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
     constructor: function(config) {
         Ext.apply(this,config);
         this.callParent(arguments);
-        console.log(this.copyRequests);
     },
     initComponent: function() {
-        
         this.callParent(arguments);
-        
+        this.addEvents('artifactscreated');
         this._buildPreview();  
         this._buildButtons();
-
     },    
     _buildPreview: function(){
         this.logger.log('_buildPreview', this.copyRequests);
@@ -384,14 +381,13 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
             success: function(totalTemplates){
                 this._copyTemplates(totalTemplates).then({
                     scope: this,
-                    success: function(){
+                    success: function(requests){
+                        this.fireEvent('artifactscreated',requests);
                         this.destroy();
                     }
                 });
             }
         });
-        
-       // this.destroy();
     },
     _copyTemplates: function(totalTemplates){
         var deferred = Ext.create('Deft.Deferred');
@@ -414,18 +410,17 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
                     var story_type = cr[this.templateArtifactKeyField];
 
                     var artifact_to_copy = this.templateArtifactHash[story_type];
-                    
+
                     this.logger.log('_copyTemplates', story_type, artifact_to_copy, this.templateArtifactHash, this.templateArtifactHash[story_type],'x');
                     if (artifact_to_copy){
                         var fields = this._getNewArtifactFields(artifact_to_copy, cr.overrideFields);
                         this.logger.log('_copyTemplates', fields, artifact_to_copy);
                         var fn = function(){
                             var deferred = Ext.create('Deft.Deferred');
-                            this._createArtifact(this.model,fields).then({
+                            this._createArtifact(this.model,fields,cr).then({
                                 scope: this,
-                                success: function(msg){
-                                    deferred.resolve(msg);
-                                    
+                                success: function(copyRequest){
+                                    deferred.resolve(copyRequest);
                                 }
                             });
                             return deferred;  
@@ -440,9 +435,9 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
                 if (promises.length > 0){
                     Deft.Chain.sequence(promises, this).then({
                         scope: this,
-                        success: function(msgs){
-                            this.logger.log('_copyTemplates createArtifacts Success', msgs);
-                            deferred.resolve();
+                        success: function(requests){
+                            this.logger.log('_copyTemplates createArtifacts Success', requests);
+                            deferred.resolve(requests);
                         },
                         failure: function(){
                             this.logger.log('_copyTemplates, createArtifact failure');
@@ -484,19 +479,22 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
          });
          return deferred; 
      },
-     _createArtifact: function(model, fields) {
+     _createArtifact: function(model, fields, copyRequest) {
          var deferred = Ext.create('Deft.Deferred');
          this.logger.log('_createArtifact start');
          var record = Ext.create(model, fields);
          record.save().then({
              scope: this,
              success: function(result){
-                 this.logger.log('_createArtifact successful');
-                 deferred.resolve(result.get('FormattedID'));
+                 this.logger.log('_createArtifact successful', result);
+                 Rally.ui.notify.Notifier.showCreate({artifact: result});                
+                 copyRequest.resultArtifact = result;
+                 deferred.resolve(copyRequest);
              },
              failure: function(operation){
                  this.logger.log('_createArtifact failed');
-                 deferred.resolve(operation.getError());
+                 copyRequest.resultArtifact = operation.error.errors[0];
+                 deferred.resolve(copyRequest);
              }
          });
          return deferred.promise;
@@ -561,8 +559,12 @@ Ext.define('CustomApp', {
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
     items: [
-        {xtype:'container',itemId:'button_box', layout: {type:'hbox'}, padding: 5},
-        {xtype:'container',itemId:'display_box', padding: 25},
+        {xtype:'container',
+            itemId:'header', 
+            layout: {type:'hbox'}, 
+            padding: 5},
+        {xtype:'container',itemId:'display_box', padding: 5, layout: {type: 'fit'}},
+        {xtype:'container',itemId:'footer', padding: 5, layout: {type: 'hbox'}}, 
         {xtype:'tsinfolink'}
     ],
     config: {
@@ -580,6 +582,11 @@ Ext.define('CustomApp', {
     },
     dodFeatureFields: null,
     featureRecords: null, 
+    //UI configurations
+    buttonWidth: 75, 
+    buttonMargin: 10,
+    noEntryText: '--',
+    
     launch: function() {
         this._fetchDoDFields().then({
             scope: this,
@@ -589,37 +596,67 @@ Ext.define('CustomApp', {
             }
         });
     },
+
+    _getExportButton: function(){
+        return this.down('#btn-export');
+    },
+    _getUpdateButton: function(){
+        return this.down('#btn-update');
+    },
+    _getHeaderContainer: function(){
+        return this.down('#header');
+    },
+    _getFooterContainer: function(){
+        return this.down('#footer');
+    },
+    _getBodyContainer: function(){
+        return this.down('#display_box');
+    },
     _initialize: function(){
-        this.down('#button_box').add({
-            xtype: 'rallyfieldvaluecombobox',
-            model: 'UserStory',
-            itemId: 'cb-release',
-            field: this.releaseField,
-            fieldLabel: this.releaseFieldLabel,
-            labelWidth: 175,
-            margin: 10,
-            labelAlign: 'right',
-            listeners: {
-                scope: this,
-                change: this._buildGrid,
-                //ready: this._buildGrid
-                
-            }
+        this._getHeaderContainer().add({
+                xtype: 'rallyfieldvaluecombobox',
+                model: 'UserStory',
+                itemId: 'cb-release',
+                field: this.releaseField,
+                fieldLabel: this.releaseFieldLabel,
+                labelWidth: 150,
+                margin: 10,
+                labelAlign: 'right',
+                listeners: {
+                    scope: this,
+                    change: this._buildGrid,
+                }
         });
-        this.down('#button_box').add({
+        this._getHeaderContainer().add({
+            xtype: 'component',
+            flex: 1
+        });
+        this._getHeaderContainer().add({
+                xtype: 'rallybutton',
+                text: 'Export',
+                itemId: 'btn-export',
+                margin: 10,
+                scope: this,
+                width: this.buttonWidth,
+                handler: this._export
+        });
+        
+       
+       this._getFooterContainer().add({
+           xtype: 'component',
+           flex: 1
+       });
+       this._getFooterContainer().add({
             xtype: 'rallybutton',
             text: 'Update',
+            itemId: 'btn-update',
+            width: this.buttonWidth,
             margin: 10,
             scope: this, 
             handler: this._update
         });
-        this.down('#button_box').add({
-            xtype: 'rallybutton',
-            text: 'Export',
-            margin: 10,
-            scope: this,
-            handler: this._export
-        });
+        
+        this._getHeaderContainer().add();
     },
     _export: function(){
         this.logger.log('_export');
@@ -636,26 +673,24 @@ Ext.define('CustomApp', {
     _update: function(){
         this.logger.log('_update');
         
-        var grid = this.down('#rally-grid');
+        var grid = this._getGrid();
         if (grid == null){
             Rally.ui.notify.Notifier.showWarning({message: 'No records to update'});
             return;  
         }
         
         var store = grid.getStore(); 
-        var updatedRecords = store.getUpdatedRecords();    
-        this.logger.log('_update', store, updatedRecords);
+
+        this.logger.log('_update', store);
         var features_to_update = [];
         var dod_re = new RegExp(this.dodStatusPrefix);
-        //Ext.each(updatedRecords, function(r){
+
         for (var i=0; i<store.totalCount; i++){
             
             var r = store.getAt(i);
             var obj = r.getData();
             var raw_obj = r.raw;
             
-            console.log('rec', r,obj,raw_obj);
-
             var keys = _.keys(obj);
             var stories_to_add = [];
             var update_feature = {
@@ -694,6 +729,8 @@ Ext.define('CustomApp', {
     _createStories: function(featuresToUpdate){
         //Create Stories 
         var code_deployment_val = this.down('#cb-release').getValue();
+        var grid_store = this._getGrid().getStore();  
+        
         var copy_requests = [];
         Ext.each(featuresToUpdate, function(f){
             if (f.newStories.length > 0){
@@ -712,14 +749,57 @@ Ext.define('CustomApp', {
         },this);
         
         this.logger.log('_createStories', copy_requests);
+        
         if (copy_requests.length > 0){
             var dlg_stories = Ext.create('Rally.technicalservices.dialog.TemplateCopier',{
                 copyRequests: copy_requests,
                 templateArtifactKeyField: this.storyTypeField,
                 title: "Create Stories",
+                listeners: {
+                    scope: this,
+                    artifactscreated: function(requests){
+                        this.logger.log('artifacts Created',requests);
+                        this._updateGrid(requests);
+                    }
+                }
             });
             dlg_stories.show();
         }
+    },
+    _getStoryTypeFieldNameFromDisplayName: function(displayName){
+        this.logger.log('_getStoryTypeFieldNameFromDisplayName',displayName);
+        var fieldName = null; 
+        Ext.Object.each(this.exportFieldMapping, function(key, val){
+            if (val === displayName){
+                fieldName = key;
+                return false;
+            }
+        });
+        return fieldName; 
+    },
+    _updateGrid: function(requests){
+        this.logger.log('_updateGrid', requests);
+        
+        var store = this._getGrid().getStore();
+        var feature_hash = {};
+        for (var i=0; i<store.getTotalCount(); i++){
+            var rec = store.getAt(i);
+            feature_hash[rec.get('FormattedID')] = rec;
+        }
+        
+        Ext.each(requests, function(r){
+            rec = feature_hash[r.FormattedID];
+            console.log(r.FormattedID, r.resultArtifact);
+            if (typeof r.resultArtifact == 'object'){
+                var field = this._getStoryTypeFieldNameFromDisplayName(r[this.storyTypeField]);
+                rec.set(field, {FormattedID: r.resultArtifact.get('FormattedID'), ObjectID: r.resultArtifact.get('ObjectID')});
+            } else {
+                var msg = Ext.String.format('Unable to create {0} artifact for {1}',r[this.storyTypeField],r.FormattedID);
+                Rally.ui.notify.Notifier.showError({message: msg});
+            }
+        }, this);
+       // this._createGrid(store);
+
     },
     _getStoryKey: function(fieldName){
         var displayName = fieldName;
@@ -750,9 +830,8 @@ Ext.define('CustomApp', {
                 } else {
                     Deft.Chain.sequence(promises, this).then({
                         scope: this,
-                        success: function(messages){
+                        success: function(){
                             this.logger.log('_updateFeatures promises completed');
-                            Rally.ui.notify.Notifier.show({message: messages.join("\n")});
                             deferred.resolve();
                         }
                     });
@@ -780,15 +859,16 @@ Ext.define('CustomApp', {
                     result.save().then({
                         scope: this,
                         success: function(f){
-                            var msg = formatted_id + " updated successfully";
-                            this.logger.log('_updateFeature save success', msg);
-                            deferred.resolve(msg);
+                            Rally.ui.notify.Notifier.showUpdate({artifact: f});
+                            this.logger.log('_updateFeature save success', f);
+                            deferred.resolve();
                         }
                     });
                 } else {
                     this.logger.log('_updateFeature unsuccessful');
                     var msg = Ext.String.format("{0} update failed [Error:  {1}]",formatted_id, operation.getError());
-                    deferred.resolve(msg);
+                    Rally.ui.notify.Notifier.showError({message: msg});
+                    deferred.resolve();
                 }
             }
         });
@@ -835,6 +915,7 @@ Ext.define('CustomApp', {
             return v; 
     },
     _getColumnCfgs: function(){
+        var noEntryText = this.noEntryText; 
         var columns = 
             [{text:'Feature',
              dataIndex:'FormattedID',
@@ -845,19 +926,17 @@ Ext.define('CustomApp', {
              }
           }];
         
-        var uneditableStatus = ['Exemption Approved'];
-        
         var editor_store = Ext.create('Ext.data.Store', {
             fields: ['name'],
             data : [
                 {"name":"Required"},
-                {"name": "Exemption Requested"}
+                {"name":"Exemption Requested"},
+                {"name": "Exemption Approved"}
                 //...
             ]
         });
         
         Ext.each(this.dodFeatureFields, function(f){
-            console.log(f.name);
             var col = {
                   //xtype: 'container',
                   text: this._getStoryTypeFromDisplayName(f.displayName),  //.replace(this.dodStatusDisplayPrefix,'',"i"),
@@ -867,16 +946,18 @@ Ext.define('CustomApp', {
                           var link_text= Ext.String.format('{0}', v.FormattedID); 
                           return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ v.ObjectID, text: link_text});
                       }
-                      if (Ext.Array.contains(uneditableStatus, v)){
-                          m.tdCls = 'approved';
-                      }
-                      return v;
+                      if (v && v.length > 0){
+                          return v;
+                      } 
+                      return noEntryText;
                   },
                   editor: {
                       xtype: 'combobox',
                       store: editor_store,
                       displayField: "name",
-                      valueField: "name"
+                      valueField: "name",
+                      allowBlank: true,
+                      emptyText: noEntryText
                   }
 
             };
@@ -890,9 +971,10 @@ Ext.define('CustomApp', {
         } 
         var uneditableValues = ['Exemption Approved'];
         var columns = this._getColumnCfgs();
-        this.down('#display_box').add({
+        this._getBodyContainer().add({
             xtype: 'rallygrid',
             itemId: 'rally-grid',
+            margin: 10,
             store: store, 
             showRowActionsColumn: false,
             scope: this,
@@ -904,38 +986,41 @@ Ext.define('CustomApp', {
                         e.cancel = true; 
                         return false; 
                     }
-                    if (e.value === 'Exemption Approved'){
-                        e.cancel = true; 
-                        return false;
-                    }
                 }
             },
             plugins: [
                 Ext.create('Ext.grid.plugin.CellEditing', {
-                    clicksToEdit: 1,
-                    listeners: {
-                        beforeedit: function(grid, f, r, v){
-                            console.log('beforeedit');
-                            if (typeof v == "object") {
-                                return false; 
-                            }
-                        }
-                    }
+                    clicksToEdit: 1
+                    
                 })
             ],
         });
         
     },
-
+    _getGrid: function(){
+        return this.down('#rally-grid')
+    },
+    _clearGrid: function(){
+        if (this._getGrid()){
+            this._getGrid().destroy();            
+        }
+    },
     _buildGrid: function(cb){
+        this.logger.log('_buildGrid');
         if (cb.getValue() == null){
             return;
         }
+        this._clearGrid();
+        
+        this.setLoading(true);
+        
         this._fetchFeatures(this.releaseField, cb.getValue()).then({
             scope: this,
             success: function(store){
                 this._createGrid(store);
+                this.setLoading(false);
             }
+        
         });
     },
 
@@ -1005,11 +1090,9 @@ Ext.define('CustomApp', {
         return deferred;
     },
     _buildCustomStore: function(features, stories){
-        
-        var feature_hash = {};
+         var feature_hash = {};
         Ext.each(stories, function(s){
             var pi = s.get('PortfolioItem');
-            console.log(pi);
             feature_hash[pi] = feature_hash[pi] || [];
             feature_hash[pi].push(s.getData());
         });
@@ -1045,8 +1128,9 @@ Ext.define('CustomApp', {
             data.push(rec);
         }, this);
         this.exportData = data;  
-        
+    
         return Ext.create('Rally.data.custom.Store',{
+            autoSync: true,
             data: data
         });
     }
@@ -1081,6 +1165,10 @@ Ext.define('CustomApp', {
 	color: 'red';
 	background-color: 'green'
 	
+}
+
+.rightbutton {
+	align: 'right';
 }
     </style>
 
