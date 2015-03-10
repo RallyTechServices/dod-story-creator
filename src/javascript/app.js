@@ -68,7 +68,6 @@ Ext.define('CustomApp', {
           listeners: {
               beforeedit: function(editor, e){
                   var storyTypeValue = this._getStoryKey(e.field);
-                  console.log('beforeedit',storyTypeValue,e.field);
                   if (this._findStoryForFeature(e.record,this.featureArtifactHash,this.storyTypeField,storyTypeValue)){
                       e.cancel = true;
                       return false;
@@ -196,11 +195,13 @@ Ext.define('CustomApp', {
         });
     },
     _refreshDisplay: function(cb){
+        this.setLoading(true);
         var releaseValue = cb.getValue();  
         this._fetchArtifactsWithStoryType(releaseValue).then({
             scope: this,
             success: function(){
                 this._buildFeatureGrid(releaseValue);
+                this.setLoading(false);
             }
         });
     },
@@ -239,6 +240,8 @@ Ext.define('CustomApp', {
         var promises = [];  
         var createTriggerValue = 'Required';
         var storyTypeField = this.storyTypeField; 
+        var artifactFeatureHash = this.featureArtifactHash;
+        
         var newArtifacts = [];
         for (var i=0; i<store.totalCount; i++){
             
@@ -252,15 +255,23 @@ Ext.define('CustomApp', {
             console.log('update',obj,r);
             Ext.each(keys, function(key){
                 if (dod_re.test(key)){
-                    if (obj[key] === createTriggerValue){
-                        var newArtifact = {
-                            feature: obj
-                        };
-                        newArtifact[storyTypeField] = key;
-                        newArtifacts.push(newArtifact); 
+                    var storyTypeValue = this._getStoryKey(key);
+                    var story = this._findStoryForFeature(r, artifactFeatureHash, storyTypeField, storyTypeValue);
+
+                    console.log(key, obj[key],story);
+                    if (story == null) {
+                        if (obj[key] === createTriggerValue){
+                            var newArtifact = {
+                                feature: obj
+                            };
+                            newArtifact[storyTypeField] = key;
+                            newArtifacts.push(newArtifact); 
+                        }
+                       
                     }
+
                 }
-            });
+            }, this);
         }
 
         if (promises.length > 0){
@@ -277,6 +288,8 @@ Ext.define('CustomApp', {
                     this._createStories(newArtifacts);
                  }
             });
+        } else {
+            this._createStories(newArtifacts);
         }
     },
     _saveRecord: function(record){
@@ -599,7 +612,7 @@ Ext.define('CustomApp', {
                       var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i");
                       var story = findStory(r, featureArtifactHash,f.name, storyTypeValue);
                       if (story){
-                        return Ext.String.format('{0}', story.FormattedID); 
+                        return Ext.String.format('{0}', story.get('FormattedID')); 
                       }
                       return v || noEntryText;
                       
