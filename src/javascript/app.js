@@ -65,6 +65,17 @@ Ext.define('CustomApp', {
                     value: releaseValue
                 }]
             },
+          listeners: {
+              beforeedit: function(editor, e){
+                  var storyTypeValue = this._getStoryKey(e.field);
+                  console.log('beforeedit',storyTypeValue,e.field);
+                  if (this._findStoryForFeature(e.record,this.featureArtifactHash,this.storyTypeField,storyTypeValue)){
+                      e.cancel = true;
+                      return false;
+                  }
+              },
+              scope: this
+            },
             columnCfgs: this._getColumnCfgs2()
         });
     },
@@ -115,8 +126,8 @@ Ext.define('CustomApp', {
             var pi = artifact.get('PortfolioItem');
             if (pi){
                 
-                hash[pi.ObjectID] = hash[pi.ObjectID] || [];
-                hash[pi.ObjectID].push(artifact);                
+                hash[pi.ObjectID.toString()] = hash[pi.ObjectID] || [];
+                hash[pi.ObjectID.toString()].push(artifact);                
             }
         });
         return hash;  
@@ -228,6 +239,7 @@ Ext.define('CustomApp', {
         var promises = [];  
         var createTriggerValue = 'Required';
         var storyTypeField = this.storyTypeField; 
+        var newArtifacts = [];
         for (var i=0; i<store.totalCount; i++){
             
             var r = store.getAt(i);
@@ -237,6 +249,7 @@ Ext.define('CustomApp', {
             
             var obj = r.getData();
             var keys = _.keys(obj);
+            console.log('update',obj,r);
             Ext.each(keys, function(key){
                 if (dod_re.test(key)){
                     if (obj[key] === createTriggerValue){
@@ -252,6 +265,7 @@ Ext.define('CustomApp', {
 
         if (promises.length > 0){
             Deft.Promise.all(promises).then({
+                scope: this,
                 success: function(results){
                     Ext.each(results, function(res){
                         if (typeof res == 'object'){
@@ -288,6 +302,7 @@ Ext.define('CustomApp', {
         
         var copyRequests = [];
         Ext.each(newArtifacts, function(a){
+            var cr = this._buildCopyRequest(a,storyTypeField,releaseField, releaseValue);
             copyRequests.push(cr);
         },this);
         
@@ -310,7 +325,7 @@ Ext.define('CustomApp', {
         }
     },
     
-    _buildCopyRequest: function(newArtifact,storyTypeField, releaseField){
+    _buildCopyRequest: function(newArtifact,storyTypeField, releaseField, releaseValue){
         var cr = {};
         cr[storyTypeField] = this._getStoryKey(newArtifact[storyTypeField]);  
         cr['FormattedID'] = newArtifact.feature.FormattedID;
@@ -497,11 +512,14 @@ Ext.define('CustomApp', {
     },
     _findStoryForFeature: function(feature, artifactFeatureHash, storyTypeField, storyTypeValue){
         var featureOid = feature.get('ObjectID');
-        var artifacts = artifactFeatureHash[featureOid];
+        var artifacts = artifactFeatureHash[featureOid.toString()];
         var artifactFound = null;  
+        if (artifacts == undefined){
+            return artifactFound;
+        }
         Ext.each(artifacts, function(artifact){
-           console.log(artifact.get(fieldType),storyTypeValue,storyTypeField);
-            if (artifact.get(fieldType) === storyTypeValue){
+           console.log('_findStory',artifact.get('c_DoDStoryType'),storyTypeValue,storyTypeField);
+            if (artifact.get('c_DoDStoryType') === storyTypeValue){
                artifactFound = artifact; 
                return false;  
            } 
@@ -514,6 +532,7 @@ Ext.define('CustomApp', {
         var featureArtifactHash = this.featureArtifactHash;  
         var findStory = this._findStoryForFeature;
         var dodStatusDisplayPrefix = this.dodStatusDisplayPrefix; 
+        var me = this;  
         
         var columns = 
             [{
@@ -524,9 +543,10 @@ Ext.define('CustomApp', {
                         record: record,
                         scope: this,
                         handler: function(item){
+
                             Ext.each(dodFields, function(f){
                                 var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i")
-                                var story = findStory(item.record, f.name, storyTypeValue, featureArtifactHash);
+                                var story = findStory(item.record, featureArtifactHash,f.name, storyTypeValue);
                                 if (story == null){
                                     item.record.set(f.name, 'Required');                                    
                                 }
@@ -539,7 +559,7 @@ Ext.define('CustomApp', {
                         handler: function(item){
                             Ext.each(dodFields, function(f){
                                 var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i")
-                                var story = findStory(item.record, f.name, storyTypeValue, featureArtifactHash);
+                                var story = findStory(item.record, featureArtifactHash,f.name, storyTypeValue);
                                 if (story == null){
                                     item.record.set(f.name, 'Exemption Requested');
                                 }
@@ -565,35 +585,23 @@ Ext.define('CustomApp', {
                   text: this._getStoryTypeFromDisplayName(f.displayName),  //.replace(this.dodStatusDisplayPrefix,'',"i"),
                   dataIndex: f.name,
                   renderer: function(v,m,r){
-                      if (v & v.length > 0){
-                          Ext.each(dodFields, function(f){
-                              var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i")
-                              var story = findStory(item.record, f.name, storyTypeValue, featureArtifactHash);
-                              if (story){
-                                var link_text= Ext.String.format('{0}', story.FormattedID); 
-                                return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ story.ObjectID, text: link_text});
-                              }
-                          });
-                              
-                      } else {
-                          return v;
-                      } 
-                      return noEntryText;
+                      var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i");
+                      var story = findStory(r, featureArtifactHash,f.name, storyTypeValue);
+                      console.log('story',story);
+                      if (story){
+                        var link_text= Ext.String.format('{0}', story.get('FormattedID')); 
+                        return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ story.get('ObjectID'), text: link_text});
+                      }
+                      return v || noEntryText;
+
                   },
                   exportRenderer: function(v,m,r){
-                      if (v & v.length > 0){
-                          Ext.each(dodFields, function(f){
-                              var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i")
-                              var story = findStory(item.record, f.name, storyTypeValue, featureArtifactHash);
-                              if (story){
-                                return Ext.String.format('{0}', story.FormattedID); 
-                              }
-                          });
-                              
-                      } else {
-                          return v;
-                      } 
-                      return noEntryText;
+                      var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i");
+                      var story = findStory(r, featureArtifactHash,f.name, storyTypeValue);
+                      if (story){
+                        return Ext.String.format('{0}', story.FormattedID); 
+                      }
+                      return v || noEntryText;
                       
                   }
             };

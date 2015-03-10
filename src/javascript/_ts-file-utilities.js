@@ -111,9 +111,6 @@ Ext.define('Rally.technicalservices.FileUtilities', {
             unselectableAttr: "unselectable='on'"
         }
         
-//        store.pageSize = 10000;
-//        store.limit = 10000;
-        
         var all_records = [];
         store.loadPages({
             callback: function(records) {
