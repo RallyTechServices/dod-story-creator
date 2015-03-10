@@ -1,7 +1,13 @@
 Ext.define('Rally.technicalservices.FileUtilities', {
     singleton: true,
     logger: new Rally.technicalservices.Logger(),
-    
+    saveCSVToFile:function(csv,file_name,type_object){
+            if (type_object == undefined){
+                type_object = {type:'text/csv;charset=utf-8'};
+            }
+            var blob = new Blob([csv],type_object);
+            saveAs(blob,file_name);
+    },
     saveTextAsFile: function(textToWrite, fileName)
     {
         var textFileAsBlob = new Blob([textToWrite], {type:'text/plain'});
@@ -62,5 +68,94 @@ Ext.define('Rally.technicalservices.FileUtilities', {
             text = text.replace(/,$/,'\n');
         },this);
         return text;
+    },
+    /*
+     * will render using your grid renderer.  If you want it to ignore the grid renderer, 
+     * have the column set _csvIgnoreRender: true
+     */
+    getCSVFromGrid:function(grid){
+        var deferred = Ext.create('Deft.Deferred');
+        var store = grid.getStore();
+                
+        var columns = grid.columns;
+        var column_names = [];
+        var headers = [];
+        
+        var csv = [];
+        
+        Ext.Array.each(columns,function(column){
+            if ( column.dataIndex || column.renderer ) {
+                column_names.push(column.dataIndex);
+                if ( column.csvText ) {
+                    headers.push(column.csvText);
+                } else {
+                    headers.push(column.text);
+                }
+            }
+        });
+        
+        csv.push('"' + headers.join('","') + '"');
+        
+        var mock_meta_data = {
+            align: "right",
+            classes: [],
+            cellIndex: 9,
+            column: null,
+            columnIndex: 9,
+            innerCls: undefined,
+            recordIndex: 5,
+            rowIndex: 5,
+            style: "",
+            tdAttr: "",
+            tdCls: "x-grid-cell x-grid-td x-grid-cell-headerId-gridcolumn-1029 x-grid-cell-last x-unselectable",
+            unselectableAttr: "unselectable='on'"
+        }
+        
+        var all_records = [];
+        store.loadPages({
+            callback: function(records) {
+                for ( var i=0; i<records.length; i++ ) {
+                    var record = records[i];
+                    
+                    var node_values = [];
+                    Ext.Array.each(columns,function(column){
+                        if (column.xtype != 'rallyrowactioncolumn'){
+                            if ( column.dataIndex) {
+                                var column_name = column.dataIndex;
+                                var display_value = record.get(column_name);
+
+                                if ( !column._csvIgnoreRender && column.renderer ) {
+                                    if (column.exportRenderer){
+                                        display_value = column.exportRenderer(display_value,mock_meta_data,record, 0, 0, store, grid.getView());
+                                    } else {
+                                        display_value = column.renderer(display_value,mock_meta_data,record, 0, 0, store, grid.getView());
+                                    }
+                                }
+                                node_values.push(display_value);
+                            } else {
+                                var display_value = null;
+                                if ( !column._csvIgnoreRender && column.renderer ) {
+                                    if (column.exportRenderer){
+                                        display_value = column.exportRenderer(display_value,mock_meta_data,record,record, 0, 0, store, grid.getView());
+                                    } else {
+                                        display_value = column.renderer(display_value,mock_meta_data,record,record, 0, 0, store, grid.getView());
+                                    }
+                                    node_values.push(display_value);
+                                }
+                            }
+                            
+                        }
+                    },this);
+                    csv.push('"' + node_values.join('","') + '"');
+                }
+                
+                deferred.resolve( csv.join('\r\n') );
+            },
+            scope: this
+        });
+        
+        return deferred.promise;
+        
     }
+
 });

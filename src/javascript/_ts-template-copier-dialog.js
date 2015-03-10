@@ -34,15 +34,12 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
     constructor: function(config) {
         Ext.apply(this,config);
         this.callParent(arguments);
-        console.log(this.copyRequests);
     },
     initComponent: function() {
-        
         this.callParent(arguments);
-        
+        this.addEvents('artifactscreated');
         this._buildPreview();  
         this._buildButtons();
-
     },    
     _buildPreview: function(){
         this.logger.log('_buildPreview', this.copyRequests);
@@ -64,14 +61,13 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
             success: function(totalTemplates){
                 this._copyTemplates(totalTemplates).then({
                     scope: this,
-                    success: function(){
+                    success: function(requests){
+                        this.fireEvent('artifactscreated',requests);
                         this.destroy();
                     }
                 });
             }
         });
-        
-       // this.destroy();
     },
     _copyTemplates: function(totalTemplates){
         var deferred = Ext.create('Deft.Deferred');
@@ -94,18 +90,17 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
                     var story_type = cr[this.templateArtifactKeyField];
 
                     var artifact_to_copy = this.templateArtifactHash[story_type];
-                    
+
                     this.logger.log('_copyTemplates', story_type, artifact_to_copy, this.templateArtifactHash, this.templateArtifactHash[story_type],'x');
                     if (artifact_to_copy){
                         var fields = this._getNewArtifactFields(artifact_to_copy, cr.overrideFields);
                         this.logger.log('_copyTemplates', fields, artifact_to_copy);
                         var fn = function(){
                             var deferred = Ext.create('Deft.Deferred');
-                            this._createArtifact(this.model,fields).then({
+                            this._createArtifact(this.model,fields,cr).then({
                                 scope: this,
-                                success: function(msg){
-                                    deferred.resolve(msg);
-                                    
+                                success: function(copyRequest){
+                                    deferred.resolve(copyRequest);
                                 }
                             });
                             return deferred;  
@@ -120,9 +115,9 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
                 if (promises.length > 0){
                     Deft.Chain.sequence(promises, this).then({
                         scope: this,
-                        success: function(msgs){
-                            this.logger.log('_copyTemplates createArtifacts Success', msgs);
-                            deferred.resolve();
+                        success: function(requests){
+                            this.logger.log('_copyTemplates createArtifacts Success', requests);
+                            deferred.resolve(requests);
                         },
                         failure: function(){
                             this.logger.log('_copyTemplates, createArtifact failure');
@@ -164,19 +159,22 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
          });
          return deferred; 
      },
-     _createArtifact: function(model, fields) {
+     _createArtifact: function(model, fields, copyRequest) {
          var deferred = Ext.create('Deft.Deferred');
          this.logger.log('_createArtifact start');
          var record = Ext.create(model, fields);
          record.save().then({
              scope: this,
              success: function(result){
-                 this.logger.log('_createArtifact successful');
-                 deferred.resolve(result.get('FormattedID'));
+                 this.logger.log('_createArtifact successful', result);
+                 Rally.ui.notify.Notifier.showCreate({artifact: result});                
+                 copyRequest.resultArtifact = result;
+                 deferred.resolve(copyRequest);
              },
              failure: function(operation){
                  this.logger.log('_createArtifact failed');
-                 deferred.resolve(operation.getError());
+                 copyRequest.resultArtifact = operation.error.errors[0];
+                 deferred.resolve(copyRequest);
              }
          });
          return deferred.promise;

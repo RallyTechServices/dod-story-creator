@@ -3,10 +3,10 @@
 <head>
     <title>Feature Definition of Done Story Creator</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Mar 01 2015 20:34:07 GMT-0700 (MST) -->
+    <!--  Build Date: Tue Mar 10 2015 10:58:12 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Mar 01 2015 20:34:07 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Tue Mar 10 2015 10:58:12 GMT-0700 (PDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -15,6 +15,426 @@
     <script type="text/javascript">
         Rally.onReady(function() {
              
+/* Blob.js
+ * A Blob implementation.
+ * 2014-05-31
+ * 
+ * By Eli Grey, http://eligrey.com
+ * By Devin Samarin, https://github.com/eboyjr
+ * License: X11/MIT
+ *   See https://github.com/eligrey/Blob.js/blob/master/LICENSE.md
+ */
+
+/*global self, unescape */
+/*jslint bitwise: true, regexp: true, confusion: true, es5: true, vars: true, white: true,
+  plusplus: true */
+
+/*! @source http://purl.eligrey.com/github/Blob.js/blob/master/Blob.js */
+
+(function (view) {
+    "use strict";
+
+    view.URL = view.URL || view.webkitURL;
+
+    if (view.Blob && view.URL) {
+        try {
+            new Blob;
+            return;
+        } catch (e) {}
+    }
+
+    // Internally we use a BlobBuilder implementation to base Blob off of
+    // in order to support older browsers that only have BlobBuilder
+    var BlobBuilder = view.BlobBuilder || view.WebKitBlobBuilder || view.MozBlobBuilder || (function(view) {
+        var
+              get_class = function(object) {
+                return Object.prototype.toString.call(object).match(/^\[object\s(.*)\]$/)[1];
+            }
+            , FakeBlobBuilder = function BlobBuilder() {
+                this.data = [];
+            }
+            , FakeBlob = function Blob(data, type, encoding) {
+                this.data = data;
+                this.size = data.length;
+                this.type = type;
+                this.encoding = encoding;
+            }
+            , FBB_proto = FakeBlobBuilder.prototype
+            , FB_proto = FakeBlob.prototype
+            , FileReaderSync = view.FileReaderSync
+            , FileException = function(type) {
+                this.code = this[this.name = type];
+            }
+            , file_ex_codes = (
+                  "NOT_FOUND_ERR SECURITY_ERR ABORT_ERR NOT_READABLE_ERR ENCODING_ERR "
+                + "NO_MODIFICATION_ALLOWED_ERR INVALID_STATE_ERR SYNTAX_ERR"
+            ).split(" ")
+            , file_ex_code = file_ex_codes.length
+            , real_URL = view.URL || view.webkitURL || view
+            , real_create_object_URL = real_URL.createObjectURL
+            , real_revoke_object_URL = real_URL.revokeObjectURL
+            , URL = real_URL
+            , btoa = view.btoa
+            , atob = view.atob
+            
+            , ArrayBuffer = view.ArrayBuffer
+            , Uint8Array = view.Uint8Array
+        ;
+        FakeBlob.fake = FB_proto.fake = true;
+        while (file_ex_code--) {
+            FileException.prototype[file_ex_codes[file_ex_code]] = file_ex_code + 1;
+        }
+        if (!real_URL.createObjectURL) {
+            URL = view.URL = {};
+        }
+        URL.createObjectURL = function(blob) {
+            var
+                  type = blob.type
+                , data_URI_header
+            ;
+            if (type === null) {
+                type = "application/octet-stream";
+            }
+            if (blob instanceof FakeBlob) {
+                data_URI_header = "data:" + type;
+                if (blob.encoding === "base64") {
+                    return data_URI_header + ";base64," + blob.data;
+                } else if (blob.encoding === "URI") {
+                    return data_URI_header + "," + decodeURIComponent(blob.data);
+                } if (btoa) {
+                    return data_URI_header + ";base64," + btoa(blob.data);
+                } else {
+                    return data_URI_header + "," + encodeURIComponent(blob.data);
+                }
+            } else if (real_create_object_URL) {
+                return real_create_object_URL.call(real_URL, blob);
+            }
+        };
+        URL.revokeObjectURL = function(object_URL) {
+            if (object_URL.substring(0, 5) !== "data:" && real_revoke_object_URL) {
+                real_revoke_object_URL.call(real_URL, object_URL);
+            }
+        };
+        FBB_proto.append = function(data/*, endings*/) {
+            var bb = this.data;
+            // decode data to a binary string
+            if (Uint8Array && (data instanceof ArrayBuffer || data instanceof Uint8Array)) {
+                var
+                      str = ""
+                    , buf = new Uint8Array(data)
+                    , i = 0
+                    , buf_len = buf.length
+                ;
+                for (; i < buf_len; i++) {
+                    str += String.fromCharCode(buf[i]);
+                }
+                bb.push(str);
+            } else if (get_class(data) === "Blob" || get_class(data) === "File") {
+                if (FileReaderSync) {
+                    var fr = new FileReaderSync;
+                    bb.push(fr.readAsBinaryString(data));
+                } else {
+                    // async FileReader won't work as BlobBuilder is sync
+                    throw new FileException("NOT_READABLE_ERR");
+                }
+            } else if (data instanceof FakeBlob) {
+                if (data.encoding === "base64" && atob) {
+                    bb.push(atob(data.data));
+                } else if (data.encoding === "URI") {
+                    bb.push(decodeURIComponent(data.data));
+                } else if (data.encoding === "raw") {
+                    bb.push(data.data);
+                }
+            } else {
+                if (typeof data !== "string") {
+                    data += ""; // convert unsupported types to strings
+                }
+                // decode UTF-16 to binary string
+                bb.push(unescape(encodeURIComponent(data)));
+            }
+        };
+        FBB_proto.getBlob = function(type) {
+            if (!arguments.length) {
+                type = null;
+            }
+            return new FakeBlob(this.data.join(""), type, "raw");
+        };
+        FBB_proto.toString = function() {
+            return "[object BlobBuilder]";
+        };
+        FB_proto.slice = function(start, end, type) {
+            var args = arguments.length;
+            if (args < 3) {
+                type = null;
+            }
+            return new FakeBlob(
+                  this.data.slice(start, args > 1 ? end : this.data.length)
+                , type
+                , this.encoding
+            );
+        };
+        FB_proto.toString = function() {
+            return "[object Blob]";
+        };
+        FB_proto.close = function() {
+            this.size = 0;
+            delete this.data;
+        };
+        return FakeBlobBuilder;
+    }(view));
+
+    view.Blob = function Blob(blobParts, options) {
+        var type = options ? (options.type || "") : "";
+        var builder = new BlobBuilder();
+        if (blobParts) {
+            for (var i = 0, len = blobParts.length; i < len; i++) {
+                builder.append(blobParts[i]);
+            }
+        }
+        return builder.getBlob(type);
+    };
+}(typeof self !== "undefined" && self || typeof window !== "undefined" && window || this.content || this));
+/* FileSaver.js
+ *  A saveAs() FileSaver implementation.
+ *  2014-05-27
+ *
+ *  By Eli Grey, http://eligrey.com
+ *  License: X11/MIT
+ *    See https://github.com/eligrey/FileSaver.js/blob/master/LICENSE.md
+ */
+
+/*global self */
+/*jslint bitwise: true, indent: 4, laxbreak: true, laxcomma: true, smarttabs: true, plusplus: true */
+
+/*! @source http://purl.eligrey.com/github/FileSaver.js/blob/master/FileSaver.js */
+
+var saveAs = saveAs
+  // IE 10+ (native saveAs)
+  || (typeof navigator !== "undefined" &&
+      navigator.msSaveOrOpenBlob && navigator.msSaveOrOpenBlob.bind(navigator))
+  // Everyone else
+  || (function(view) {
+    "use strict";
+    // IE <10 is explicitly unsupported
+    if (typeof navigator !== "undefined" &&
+        /MSIE [1-9]\./.test(navigator.userAgent)) {
+        return;
+    }
+    var
+          doc = view.document
+          // only get URL when necessary in case Blob.js hasn't overridden it yet
+        , get_URL = function() {
+            return view.URL || view.webkitURL || view;
+        }
+        , save_link = doc.createElementNS("http://www.w3.org/1999/xhtml", "a")
+        , can_use_save_link = !view.externalHost && "download" in save_link
+        , click = function(node) {
+            var event = doc.createEvent("MouseEvents");
+            event.initMouseEvent(
+                "click", true, false, view, 0, 0, 0, 0, 0
+                , false, false, false, false, 0, null
+            );
+            node.dispatchEvent(event);
+        }
+        , webkit_req_fs = view.webkitRequestFileSystem
+        , req_fs = view.requestFileSystem || webkit_req_fs || view.mozRequestFileSystem
+        , throw_outside = function(ex) {
+            (view.setImmediate || view.setTimeout)(function() {
+                throw ex;
+            }, 0);
+        }
+        , force_saveable_type = "application/octet-stream"
+        , fs_min_size = 0
+        , deletion_queue = []
+        , process_deletion_queue = function() {
+            var i = deletion_queue.length;
+            while (i--) {
+                var file = deletion_queue[i];
+                if (typeof file === "string") { // file is an object URL
+                    get_URL().revokeObjectURL(file);
+                } else { // file is a File
+                    file.remove();
+                }
+            }
+            deletion_queue.length = 0; // clear queue
+        }
+        , dispatch = function(filesaver, event_types, event) {
+            event_types = [].concat(event_types);
+            var i = event_types.length;
+            while (i--) {
+                var listener = filesaver["on" + event_types[i]];
+                if (typeof listener === "function") {
+                    try {
+                        listener.call(filesaver, event || filesaver);
+                    } catch (ex) {
+                        throw_outside(ex);
+                    }
+                }
+            }
+        }
+        , FileSaver = function(blob, name) {
+            // First try a.download, then web filesystem, then object URLs
+            var
+                  filesaver = this
+                , type = blob.type
+                , blob_changed = false
+                , object_url
+                , target_view
+                , get_object_url = function() {
+                    var object_url = get_URL().createObjectURL(blob);
+                    deletion_queue.push(object_url);
+                    return object_url;
+                }
+                , dispatch_all = function() {
+                    dispatch(filesaver, "writestart progress write writeend".split(" "));
+                }
+                // on any filesys errors revert to saving with object URLs
+                , fs_error = function() {
+                    // don't create more object URLs than needed
+                    if (blob_changed || !object_url) {
+                        object_url = get_object_url(blob);
+                    }
+                    if (target_view) {
+                        target_view.location.href = object_url;
+                    } else {
+                        window.open(object_url, "_blank");
+                    }
+                    filesaver.readyState = filesaver.DONE;
+                    dispatch_all();
+                }
+                , abortable = function(func) {
+                    return function() {
+                        if (filesaver.readyState !== filesaver.DONE) {
+                            return func.apply(this, arguments);
+                        }
+                    };
+                }
+                , create_if_not_found = {create: true, exclusive: false}
+                , slice
+            ;
+            filesaver.readyState = filesaver.INIT;
+            if (!name) {
+                name = "download";
+            }
+            if (can_use_save_link) {
+                object_url = get_object_url(blob);
+                save_link.href = object_url;
+                save_link.download = name;
+                click(save_link);
+                filesaver.readyState = filesaver.DONE;
+                dispatch_all();
+                return;
+            }
+            // Object and web filesystem URLs have a problem saving in Google Chrome when
+            // viewed in a tab, so I force save with application/octet-stream
+            // http://code.google.com/p/chromium/issues/detail?id=91158
+            if (view.chrome && type && type !== force_saveable_type) {
+                slice = blob.slice || blob.webkitSlice;
+                blob = slice.call(blob, 0, blob.size, force_saveable_type);
+                blob_changed = true;
+            }
+            // Since I can't be sure that the guessed media type will trigger a download
+            // in WebKit, I append .download to the filename.
+            // https://bugs.webkit.org/show_bug.cgi?id=65440
+            if (webkit_req_fs && name !== "download") {
+                name += ".download";
+            }
+            if (type === force_saveable_type || webkit_req_fs) {
+                target_view = view;
+            }
+            if (!req_fs) {
+                fs_error();
+                return;
+            }
+            fs_min_size += blob.size;
+            req_fs(view.TEMPORARY, fs_min_size, abortable(function(fs) {
+                fs.root.getDirectory("saved", create_if_not_found, abortable(function(dir) {
+                    var save = function() {
+                        dir.getFile(name, create_if_not_found, abortable(function(file) {
+                            file.createWriter(abortable(function(writer) {
+                                writer.onwriteend = function(event) {
+                                    target_view.location.href = file.toURL();
+                                    deletion_queue.push(file);
+                                    filesaver.readyState = filesaver.DONE;
+                                    dispatch(filesaver, "writeend", event);
+                                };
+                                writer.onerror = function() {
+                                    var error = writer.error;
+                                    if (error.code !== error.ABORT_ERR) {
+                                        fs_error();
+                                    }
+                                };
+                                "writestart progress write abort".split(" ").forEach(function(event) {
+                                    writer["on" + event] = filesaver["on" + event];
+                                });
+                                writer.write(blob);
+                                filesaver.abort = function() {
+                                    writer.abort();
+                                    filesaver.readyState = filesaver.DONE;
+                                };
+                                filesaver.readyState = filesaver.WRITING;
+                            }), fs_error);
+                        }), fs_error);
+                    };
+                    dir.getFile(name, {create: false}, abortable(function(file) {
+                        // delete file if it already exists
+                        file.remove();
+                        save();
+                    }), abortable(function(ex) {
+                        if (ex.code === ex.NOT_FOUND_ERR) {
+                            save();
+                        } else {
+                            fs_error();
+                        }
+                    }));
+                }), fs_error);
+            }), fs_error);
+        }
+        , FS_proto = FileSaver.prototype
+        , saveAs = function(blob, name) {
+            return new FileSaver(blob, name);
+        }
+    ;
+    FS_proto.abort = function() {
+        var filesaver = this;
+        filesaver.readyState = filesaver.DONE;
+        dispatch(filesaver, "abort");
+    };
+    FS_proto.readyState = FS_proto.INIT = 0;
+    FS_proto.WRITING = 1;
+    FS_proto.DONE = 2;
+
+    FS_proto.error =
+    FS_proto.onwritestart =
+    FS_proto.onprogress =
+    FS_proto.onwrite =
+    FS_proto.onabort =
+    FS_proto.onerror =
+    FS_proto.onwriteend =
+        null;
+
+    view.addEventListener("unload", process_deletion_queue, false);
+    saveAs.unload = function() {
+        process_deletion_queue();
+        view.removeEventListener("unload", process_deletion_queue, false);
+    };
+    return saveAs;
+}(
+       typeof self !== "undefined" && self
+    || typeof window !== "undefined" && window
+    || this.content
+));
+// `self` is undefined in Firefox for Android content script context
+// while `this` is nsIContentFrameMessageManager
+// with an attribute `content` that corresponds to the window
+
+if (typeof module !== "undefined" && module !== null) {
+  module.exports = saveAs;
+} else if ((typeof define !== "undefined" && define !== null) && (define.amd != null)) {
+  define([], function() {
+    return saveAs;
+  });
+}
 /**
  * A link that pops up a version dialog box
  */
@@ -138,6 +558,41 @@ Ext.define('Rally.technicalservices.Logger',{
 
 });
 
+    Ext.define('Rally.ui.menu.bulk.DodRequired', {
+        extend: 'Rally.ui.menu.bulk.MenuItem',
+        alias: 'widget.rallyrecordmenuitembulkdodrequired',
+
+        config: {
+            text: 'Set All Required',
+            handler: function() {this._setRequired();},
+            predicate: function(records){
+                return _.every(records, function(record) {
+                    return true;
+                });
+            }
+        },
+        _setRequired: function(){
+            console.log('_setRequired', this.records);
+        }
+        
+   });
+    
+    Ext.define('Rally.ui.menu.Menu', {
+        extend: 'Rally.ui.menu.Menu',
+        /**
+         * @private
+         * @cfg userAction {String} (Optional)
+         * the user action message to send to client metrics when the menu is clicked
+         */
+
+        initComponent: function() {
+            this.callParent(arguments);
+        },
+
+        _onHide: function() {
+            this.destroy();
+        }
+    });
 Ext.define('Rally.technicalservices.data.Chunker',{
     MAX_CHUNK_SIZE: 25,
     logger: new Rally.technicalservices.Logger(),
@@ -222,7 +677,13 @@ Ext.define('Rally.technicalservices.data.DoDModel',{
 Ext.define('Rally.technicalservices.FileUtilities', {
     singleton: true,
     logger: new Rally.technicalservices.Logger(),
-    
+    saveCSVToFile:function(csv,file_name,type_object){
+            if (type_object == undefined){
+                type_object = {type:'text/csv;charset=utf-8'};
+            }
+            var blob = new Blob([csv],type_object);
+            saveAs(blob,file_name);
+    },
     saveTextAsFile: function(textToWrite, fileName)
     {
         var textFileAsBlob = new Blob([textToWrite], {type:'text/plain'});
@@ -283,8 +744,311 @@ Ext.define('Rally.technicalservices.FileUtilities', {
             text = text.replace(/,$/,'\n');
         },this);
         return text;
+    },
+    /*
+     * will render using your grid renderer.  If you want it to ignore the grid renderer, 
+     * have the column set _csvIgnoreRender: true
+     */
+    getCSVFromGrid:function(grid){
+        var deferred = Ext.create('Deft.Deferred');
+        var store = grid.getStore();
+                
+        var columns = grid.columns;
+        var column_names = [];
+        var headers = [];
+        
+        var csv = [];
+        
+        Ext.Array.each(columns,function(column){
+            if ( column.dataIndex || column.renderer ) {
+                column_names.push(column.dataIndex);
+                if ( column.csvText ) {
+                    headers.push(column.csvText);
+                } else {
+                    headers.push(column.text);
+                }
+            }
+        });
+        
+        csv.push('"' + headers.join('","') + '"');
+        
+        var mock_meta_data = {
+            align: "right",
+            classes: [],
+            cellIndex: 9,
+            column: null,
+            columnIndex: 9,
+            innerCls: undefined,
+            recordIndex: 5,
+            rowIndex: 5,
+            style: "",
+            tdAttr: "",
+            tdCls: "x-grid-cell x-grid-td x-grid-cell-headerId-gridcolumn-1029 x-grid-cell-last x-unselectable",
+            unselectableAttr: "unselectable='on'"
+        }
+        
+        var all_records = [];
+        store.loadPages({
+            callback: function(records) {
+                for ( var i=0; i<records.length; i++ ) {
+                    var record = records[i];
+                    
+                    var node_values = [];
+                    Ext.Array.each(columns,function(column){
+                        if (column.xtype != 'rallyrowactioncolumn'){
+                            if ( column.dataIndex) {
+                                var column_name = column.dataIndex;
+                                var display_value = record.get(column_name);
+
+                                if ( !column._csvIgnoreRender && column.renderer ) {
+                                    if (column.exportRenderer){
+                                        display_value = column.exportRenderer(display_value,mock_meta_data,record, 0, 0, store, grid.getView());
+                                    } else {
+                                        display_value = column.renderer(display_value,mock_meta_data,record, 0, 0, store, grid.getView());
+                                    }
+                                }
+                                node_values.push(display_value);
+                            } else {
+                                var display_value = null;
+                                if ( !column._csvIgnoreRender && column.renderer ) {
+                                    if (column.exportRenderer){
+                                        display_value = column.exportRenderer(display_value,mock_meta_data,record,record, 0, 0, store, grid.getView());
+                                    } else {
+                                        display_value = column.renderer(display_value,mock_meta_data,record,record, 0, 0, store, grid.getView());
+                                    }
+                                    node_values.push(display_value);
+                                }
+                            }
+                            
+                        }
+                    },this);
+                    csv.push('"' + node_values.join('","') + '"');
+                }
+                
+                deferred.resolve( csv.join('\r\n') );
+            },
+            scope: this
+        });
+        
+        return deferred.promise;
+        
     }
+
 });
+//Ext.override(Rally.ui.menu.RecordMenu,{
+//    items: [{
+//        predicate: function(record){ return true;}
+//    }]
+//});
+//
+//
+//     Ext.override(Rally.ui.grid.RowActionColumn, {
+////        requires: [
+////            'Rally.ui.menu.RecordMenu',
+////            'Rally.util.Test'
+////        ],
+////        extend: 'Ext.grid.column.Column',
+////        alias: 'widget.rallyrowactioncolumn',
+////
+//        inheritableStatics: {
+//            getRequiredFetchFields: function(grid) {
+//                return (grid.enableBulkEdit && ['Project', 'Tags']) || [];
+//            }
+//        },
+//
+//        clientMetrics: {
+//            event: 'click',
+//            description: 'clicked gear menu'
+//        },
+//
+//        /**
+//         * @property {Boolean} sortable False to disable sorting of this column
+//         *
+//         */
+//        sortable: false,
+//        /**
+//         * @property {Boolean} hideable False to disable hiding of column
+//         *
+//         */
+//        hideable: false,
+//        /**
+//         * @property {Boolean} resizable False to disable resizing of column
+//         *
+//         */
+//        resizable: false,
+//        /**
+//         * @property {Boolean} draggable False to disable reordering of a column
+//         *
+//         */
+//        draggable: false,
+//        /**
+//         * @property {Boolean} menuDisabled True to disable the column header menu containing sort/hide options
+//         *
+//         */
+//        menuDisabled: true,
+//        /**
+//         * @property {Number}
+//         *
+//         */
+//        flex: -1,
+//        minWidth: Ext.isIE9 ? 22 : 26,
+//        maxWidth: Ext.isIE9 ? 22 : 26,
+//
+//        /**
+//         * @property {Boolean}
+//         * This column should not show up on print pages that include a printable grid
+//         */
+//        printable: false,
+//
+//        tdCls: 'rally-cell-row-action',
+//        rowActionsFn: function(record){
+//            return [{
+//                text: 'Set all Required', 
+//                record: record, 
+//                handler: function(){alert('hi');}
+//            }];
+//        } ,
+//        config: {
+//            /**
+//             * @cfg {Function} rowActionsFn
+//             * @params record {Ext.data.Record} The record to be assigned to record menu items
+//             * A list of Rally.ui.menu.Menu#items objects that will be used as the row action options
+//             * Each row action can contain a predicate property which will be evaluated to see if the row action should be included
+//             * Usage:
+//             *      [
+//             *          {text: 'Move...', record: record, handler: function(){  // move this.record  }}
+//             *      ]
+//             */
+//            rowActionsFn: function(record){
+//                return [{
+//                    text: 'Set all Required', 
+//                    record: record, 
+//                    handler: function(){alert('hi');}
+//                }];
+//            } 
+//        },
+//
+//        constructor: function() {
+//            this.callParent(arguments);
+//            this.renderer = this._renderGearIcon;
+//        },
+//
+//        initComponent: function() {
+//            this.callParent(arguments);
+//            this.on('click', this._showMenu, this);
+//        },
+//
+//        onDestroy: function() {
+//            if (this.menu) {
+//                this.menu.destroy();
+//                delete this.menu;
+//            }
+//
+//            this.callParent(arguments);
+//        },
+//
+//        /**
+//         * @private
+//         * @param value
+//         * @param metaData
+//         * @param record
+//         */
+//        _renderGearIcon: function(value, metaData, record) {
+//            metaData.tdCls = Rally.util.Test.toBrowserTestCssClass('row-action', Rally.util.Ref.getOidFromRef(record.get('_ref')));
+//
+//            if (record.get("updatable") || record.get("deletable") || record.get("creatable")) {
+//                return '<div class="row-action-icon icon-gear"/>';
+//            }
+//
+//            return '';
+//        },
+//
+//        /**
+//         * @private
+//         * @param view
+//         * @param el
+//         */
+//        _showMenu: function(view, el) {
+//            var selectedRecord = view.getRecord(Ext.fly(el).parent("tr")),
+//                checkedRecords = view.getSelectionModel().getSelection(),
+//                grid = view.panel,
+//                defaultOptions;
+//
+//            defaultOptions = {
+//                cls: Rally.util.Test.toBrowserTestCssClass('row-gear-menu-' + selectedRecord.getId()) + ' row-gear-menu',
+//                record: selectedRecord,
+//                owningEl: el.parentElement,
+//                popoverPlacement: ['bottom', 'top'],
+//                rankRecordHelper: {
+//                    findRecordToRankAgainst: function(options) {
+//                        grid.findRankedRecord(options);
+//                    },
+//                    getMoveToPositionStore: function(options) {
+//                        return grid.getMoveToPositionStore(options);
+//                    }
+//                },
+//                onBeforeRecordMenuCopy: function(record) {
+//                    return grid.onBeforeRecordMenuCopy(record);
+//                },
+//                onRecordMenuCopy: function(copiedRecord, originalRecord, operation) {
+//                    return grid.onRecordMenuCopy(copiedRecord, originalRecord, operation);
+//                },
+//                onBeforeRecordMenuEdit: function(record) {
+//                    return grid.onBeforeRecordMenuEdit(record);
+//                },
+//                onBeforeRecordMenuDelete: function(record) {
+//                    return grid.onBeforeRecordMenuDelete(record);
+//                },
+//                onRecordMenuDelete: function(record) {
+//                    return grid.onRecordMenuDelete(record);
+//                },
+//                onBeforeRecordMenuRankHighest: function(record) {
+//                    return grid.onBeforeRecordMenuRankHighest(record);
+//                },
+//                onBeforeRecordMenuRankLowest: function(record) {
+//                    return grid.onBeforeRecordMenuRankLowest(record);
+//                },
+//                shouldRecordBeRankable: function(record) {
+//                    return grid.shouldRecordBeRankable(record);
+//                }
+//            };
+//            console.log('rowActionsFn',this.rowActionsFn);
+//            if (grid.enableBulkEdit && _.contains(checkedRecords, selectedRecord)) {
+//                this.menu = Ext.create('Rally.ui.menu.bulk.RecordMenu', {
+//                    context: grid.getContext(),
+//                    records: checkedRecords,
+//                    onBeforeAction: function() {
+//                        if (view.loadMask && _.isFunction(view.loadMask.disable)) {
+//                            view.loadMask.disable();
+//                        }
+//                        grid.setLoading('Updating...');
+//                    },
+//                    onActionComplete: function(successfulRecords, unsuccessfulRecords, changes) {
+//                        grid.refreshAfterBulkAction(successfulRecords, changes).then({
+//                            success: function() {
+//                                grid.setLoading(false);
+//                                if (view.loadMask && _.isFunction(view.loadMask.enable)) {
+//                                    view.loadMask.enable();
+//                                }
+//                                grid.getSelectionModel().deselect(successfulRecords);
+//                                grid.getSelectionModel().select(unsuccessfulRecords);
+//                                _.each(successfulRecords, grid.highlightRowForRecord, grid);
+//                                grid.publish(Rally.Message.bulkUpdate, successfulRecords, changes, grid);
+//                            }
+//                        });
+//                    }
+//                });
+//            } else if (this.rowActionsFn) {
+//                this.menu = Ext.create('Rally.ui.menu.RecordMenu', Ext.apply({
+//                    items: this.rowActionsFn.call(this.scope || this, selectedRecord)
+//                }, defaultOptions));
+//            } else {
+//                this.menu = Ext.create('Rally.ui.menu.DefaultRecordMenu', defaultOptions);
+//            }
+//
+//            this.menu.showBy(Ext.fly(el).down(".row-action-icon"));
+//        }
+//    });
 Ext.override(Ext.layout.container.Editor, {
     calculate: function(ownerContext) {
         console.log(ownerContext);
@@ -354,15 +1118,12 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
     constructor: function(config) {
         Ext.apply(this,config);
         this.callParent(arguments);
-        console.log(this.copyRequests);
     },
     initComponent: function() {
-        
         this.callParent(arguments);
-        
+        this.addEvents('artifactscreated');
         this._buildPreview();  
         this._buildButtons();
-
     },    
     _buildPreview: function(){
         this.logger.log('_buildPreview', this.copyRequests);
@@ -384,14 +1145,13 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
             success: function(totalTemplates){
                 this._copyTemplates(totalTemplates).then({
                     scope: this,
-                    success: function(){
+                    success: function(requests){
+                        this.fireEvent('artifactscreated',requests);
                         this.destroy();
                     }
                 });
             }
         });
-        
-       // this.destroy();
     },
     _copyTemplates: function(totalTemplates){
         var deferred = Ext.create('Deft.Deferred');
@@ -414,18 +1174,17 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
                     var story_type = cr[this.templateArtifactKeyField];
 
                     var artifact_to_copy = this.templateArtifactHash[story_type];
-                    
+
                     this.logger.log('_copyTemplates', story_type, artifact_to_copy, this.templateArtifactHash, this.templateArtifactHash[story_type],'x');
                     if (artifact_to_copy){
                         var fields = this._getNewArtifactFields(artifact_to_copy, cr.overrideFields);
                         this.logger.log('_copyTemplates', fields, artifact_to_copy);
                         var fn = function(){
                             var deferred = Ext.create('Deft.Deferred');
-                            this._createArtifact(this.model,fields).then({
+                            this._createArtifact(this.model,fields,cr).then({
                                 scope: this,
-                                success: function(msg){
-                                    deferred.resolve(msg);
-                                    
+                                success: function(copyRequest){
+                                    deferred.resolve(copyRequest);
                                 }
                             });
                             return deferred;  
@@ -440,9 +1199,9 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
                 if (promises.length > 0){
                     Deft.Chain.sequence(promises, this).then({
                         scope: this,
-                        success: function(msgs){
-                            this.logger.log('_copyTemplates createArtifacts Success', msgs);
-                            deferred.resolve();
+                        success: function(requests){
+                            this.logger.log('_copyTemplates createArtifacts Success', requests);
+                            deferred.resolve(requests);
                         },
                         failure: function(){
                             this.logger.log('_copyTemplates, createArtifact failure');
@@ -484,19 +1243,22 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
          });
          return deferred; 
      },
-     _createArtifact: function(model, fields) {
+     _createArtifact: function(model, fields, copyRequest) {
          var deferred = Ext.create('Deft.Deferred');
          this.logger.log('_createArtifact start');
          var record = Ext.create(model, fields);
          record.save().then({
              scope: this,
              success: function(result){
-                 this.logger.log('_createArtifact successful');
-                 deferred.resolve(result.get('FormattedID'));
+                 this.logger.log('_createArtifact successful', result);
+                 Rally.ui.notify.Notifier.showCreate({artifact: result});                
+                 copyRequest.resultArtifact = result;
+                 deferred.resolve(copyRequest);
              },
              failure: function(operation){
                  this.logger.log('_createArtifact failed');
-                 deferred.resolve(operation.getError());
+                 copyRequest.resultArtifact = operation.error.errors[0];
+                 deferred.resolve(copyRequest);
              }
          });
          return deferred.promise;
@@ -556,20 +1318,730 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
         });
     }
 });
+//Ext.define('CustomApp', {
+//    extend: 'Rally.app.App',
+//    componentCls: 'app',
+//    logger: new Rally.technicalservices.Logger(),
+//    items: [
+//        {xtype:'container',
+//            itemId:'header', 
+//            layout: {type:'hbox'}, 
+//            padding: 5},
+//        {xtype:'container',itemId:'display_box', padding: 5, layout: {type: 'fit'}},
+//        {xtype:'container',itemId:'footer', padding: 5, layout: {type: 'hbox'}}, 
+//        {xtype:'tsinfolink'}
+//    ],
+//    config: {
+//        releaseField: 'c_CodeDeploymentSchedule',
+//        releaseFieldLabel: 'Deployment Schedule',
+//        storyTypeField: 'c_DoDStoryType',
+//        portfolioItemL1: 'PortfolioItem/Feature',
+//        dodStatusPrefix: 'c_DoDStatus',
+//        dodStatusDisplayPrefix: 'DoD Status: ',
+//        requiredValue: 'Required'
+//    },
+//    exportFieldMapping: {
+//        'FormattedID': 'FormattedID',
+//        'Name': 'Name'
+//    },
+//    dodFeatureFields: null,
+//    featureRecords: null, 
+//    //UI configurations
+//    buttonWidth: 75, 
+//    buttonMargin: 10,
+//    noEntryText: '--',
+//    
+//    launch: function() {
+//        this._fetchDoDFields().then({
+//            scope: this,
+//            success: function(fields){
+//                this.dodFeatureFields = fields; 
+//                this._initialize();
+//            }
+//        });
+//    },
+//    _getFeatureGrid: function(){
+//        return this.down('#grid-feature');
+//    },
+//    _buildFeatureGrid: function(cb){
+//        
+//        var releaseValue = cb.getValue();
+//        var fetch = _.keys(this.exportFieldMapping);
+//        
+//        this.down('#display_box').add({
+//            xtype: 'rallygrid',
+//            itemId: 'grid-feature',
+//            showRowActionsColumn: false,
+//            storeConfig: {
+//                model: 'PortfolioItem/Feature',
+//                fetch: fetch,
+//                autoLoad: true,
+//                filters: [{
+//                    property: this.releaseField,
+//                    value: releaseValue
+//                }]
+//            },
+//            columnCfgs: this._getColumnCfgs2()
+//        });
+//    },
+//    _getExportButton: function(){
+//        return this.down('#btn-export');
+//    },
+//    _getUpdateButton: function(){
+//        return this.down('#btn-update');
+//    },
+//    _getHeaderContainer: function(){
+//        return this.down('#header');
+//    },
+//    _getFooterContainer: function(){
+//        return this.down('#footer');
+//    },
+//    _getBodyContainer: function(){
+//        return this.down('#display_box');
+//    },
+//    _initialize: function(){
+//        this._getHeaderContainer().add({
+//                xtype: 'rallyfieldvaluecombobox',
+//                model: 'UserStory',
+//                itemId: 'cb-release',
+//                field: this.releaseField,
+//                fieldLabel: this.releaseFieldLabel,
+//                labelWidth: 150,
+//                margin: 10,
+//                labelAlign: 'right',
+//                listeners: {
+//                    scope: this,
+//                    change: this._buildFeatureGrid //this._buildGrid,
+//                }
+//        });
+//        this._getHeaderContainer().add({
+//            xtype: 'component',
+//            flex: 1
+//        });
+//        this._getHeaderContainer().add({
+//                xtype: 'rallybutton',
+//                text: 'Export',
+//                itemId: 'btn-export',
+//                margin: 10,
+//                scope: this,
+//                width: this.buttonWidth,
+//                handler: this._export
+//        });
+//        
+//       
+//       this._getFooterContainer().add({
+//           xtype: 'component',
+//           flex: 1
+//       });
+//       this._getFooterContainer().add({
+//            xtype: 'rallybutton',
+//            text: 'Update',
+//            itemId: 'btn-update',
+//            width: this.buttonWidth,
+//            margin: 10,
+//            scope: this, 
+//            handler: this._update
+//        });
+//        
+//        this._getHeaderContainer().add();
+//    },
+//    _export: function(){
+//        this.logger.log('_export');
+//        var grid = this.down('#rally-grid');
+//        if (this.exportData && this.exportData.length > 0){
+//            var code_deployment = this.down('#cb-release').getValue() || 'none';  
+//            var filename = Ext.String.format('dod-status-{0}.csv',code_deployment);
+//            var text = Rally.technicalservices.FileUtilities.convertDataArrayToCSVText(this.exportData, this.exportFieldMapping);
+//            Rally.technicalservices.FileUtilities.saveTextAsFile(text, filename);
+//        } else {
+//            Rally.ui.notify.Notifier.showWarning({message: 'No data to export'});
+//        }
+//    },  
+//    _update: function(){
+//        this.logger.log('_update');
+//        
+//        var grid = this._getGrid();
+//        if (grid == null){
+//            Rally.ui.notify.Notifier.showWarning({message: 'No records to update'});
+//            return;  
+//        }
+//        
+//        var store = grid.getStore(); 
+//
+//        this.logger.log('_update', store);
+//        var features_to_update = [];
+//        var dod_re = new RegExp(this.dodStatusPrefix);
+//
+//        for (var i=0; i<store.totalCount; i++){
+//            
+//            var r = store.getAt(i);
+//            var obj = r.getData();
+//            var raw_obj = r.raw;
+//            
+//            var keys = _.keys(obj);
+//            var stories_to_add = [];
+//            var update_feature = {
+//                    newStories: [], 
+//                    updatedFields: {}, 
+//                    _ref: obj._ref, 
+//                    FormattedID: obj.FormattedID, 
+//                    ObjectID: obj.ObjectID,
+//                    updateFlag: false};
+//
+//            Ext.each(keys, function(key){
+//                if (dod_re.test(key)){
+//                    if (obj[key] === 'Required'){
+//                        update_feature.newStories.push(key); 
+//                    }
+//                    if (raw_obj[key] != obj[key]){
+//                        update_feature.updatedFields[key] = obj[key]; 
+//                    }
+//                }
+//            });
+//            if (update_feature.newStories.length > 0 || !_.isEmpty(update_feature.updatedFields)){
+//                features_to_update.push(update_feature);
+//            }
+//        }
+//
+//        this.logger.log('_update',features_to_update);
+//
+//        this._updateFeatures(features_to_update).then({
+//            scope: this,
+//            success: function(){
+//                this._createStories(features_to_update);                
+//            }
+//        
+//        });
+//    },
+//    _createStories: function(featuresToUpdate){
+//        //Create Stories 
+//        var code_deployment_val = this.down('#cb-release').getValue();
+//        var grid_store = this._getGrid().getStore();  
+//        
+//        var copy_requests = [];
+//        Ext.each(featuresToUpdate, function(f){
+//            if (f.newStories.length > 0){
+//                Ext.each(f.newStories, function(ns){
+//                    var cr = {};
+//                    cr[this.storyTypeField] = this._getStoryKey(ns);  
+//                    cr['FormattedID'] = f.FormattedID;
+//                    cr['overrideFields'] ={};
+//                    cr.overrideFields['PortfolioItem'] = f._ref;
+//                    cr.overrideFields[this.releaseField] = code_deployment_val;
+//                    cr.overrideFields['Name'] = f.FormattedID;
+//                    cr.overrideFields['Release'] = f.Release;
+//                    copy_requests.push(cr);
+//                },this);
+//            }
+//        },this);
+//        
+//        this.logger.log('_createStories', copy_requests);
+//        
+//        if (copy_requests.length > 0){
+//            var dlg_stories = Ext.create('Rally.technicalservices.dialog.TemplateCopier',{
+//                copyRequests: copy_requests,
+//                templateArtifactKeyField: this.storyTypeField,
+//                title: "Create Stories",
+//                listeners: {
+//                    scope: this,
+//                    artifactscreated: function(requests){
+//                        this.logger.log('artifacts Created',requests);
+//                        this._updateGrid(requests);
+//                    }
+//                }
+//            });
+//            dlg_stories.show();
+//        }
+//    },
+//    _getStoryTypeFieldNameFromDisplayName: function(displayName){
+//        this.logger.log('_getStoryTypeFieldNameFromDisplayName',displayName);
+//        var fieldName = null; 
+//        Ext.Object.each(this.exportFieldMapping, function(key, val){
+//            if (val === displayName){
+//                fieldName = key;
+//                return false;
+//            }
+//        });
+//        return fieldName; 
+//    },
+//    _updateGrid: function(requests){
+//        this.logger.log('_updateGrid', requests);
+//        
+//        var store = this._getGrid().getStore();
+//        var feature_hash = {};
+//        for (var i=0; i<store.getTotalCount(); i++){
+//            var rec = store.getAt(i);
+//            feature_hash[rec.get('FormattedID')] = rec;
+//        }
+//        
+//        Ext.each(requests, function(r){
+//            rec = feature_hash[r.FormattedID];
+//            console.log(r.FormattedID, r.resultArtifact);
+//            if (typeof r.resultArtifact == 'object'){
+//                var field = this._getStoryTypeFieldNameFromDisplayName(r[this.storyTypeField]);
+//                rec.set(field, {FormattedID: r.resultArtifact.get('FormattedID'), ObjectID: r.resultArtifact.get('ObjectID')});
+//            } else {
+//                var msg = Ext.String.format('Unable to create {0} artifact for {1}',r[this.storyTypeField],r.FormattedID);
+//                Rally.ui.notify.Notifier.showError({message: msg});
+//            }
+//        }, this);
+//       // this._createGrid(store);
+//
+//    },
+//    _getStoryKey: function(fieldName){
+//        var displayName = fieldName;
+//        Ext.each(this.dodFeatureFields, function(field){
+//            if (field.name == fieldName){
+//                displayName = field.displayName;
+//                return false; 
+//            }
+//        });
+//        return this._getStoryTypeFromDisplayName(displayName); //.replace(this.dodStatusDisplayPrefix,''); 
+//    },
+//    _updateFeatures: function(featureObjs){
+//        var deferred = Ext.create('Deft.Deferred');
+//        Rally.data.ModelFactory.getModel({
+//            type: this.portfolioItemL1,
+//            scope: this,
+//            success: function(model) {
+//                this.logger.log('_updateFeatures model loaded');
+//                var promises = []; 
+//                Ext.each(featureObjs, function(obj){
+//                    if (!_.isEmpty(obj.updatedFields)){
+//                        promises.push(function(){this._updateFeature(model, obj)});
+//                    }
+//                }, this);
+//                
+//                if (promises.length == 0){
+//                    deferred.resolve();
+//                } else {
+//                    Deft.Chain.sequence(promises, this).then({
+//                        scope: this,
+//                        success: function(){
+//                            this.logger.log('_updateFeatures promises completed');
+//                            deferred.resolve();
+//                        }
+//                    });
+//                }
+//            }
+//        });
+//        return deferred;  
+//    },
+//    _updateFeature: function(model, feature){
+//        var deferred = Ext.create('Deft.Deferred');
+//        var fetch = _.keys(feature.updatedFields);
+//        var formatted_id = feature.FormattedID;
+//        this.logger.log('_updateFeature', feature);
+//        model.load(feature.ObjectID, {
+//            fetch: fetch,
+//            scope: this,
+//            callback: function(result, operation) {
+//                this.logger.log('_updateFeature loaded', operation);
+//                if(operation.wasSuccessful()) {
+//                    this.logger.log('_updateFeature load success');
+//                    Ext.Object.each(feature.updatedFields, function(field,value){
+//                        this.logger.log('setting',feature.FormattedID, field,value);
+//                        result.set(field,value);
+//                    }, this);
+//                    result.save().then({
+//                        scope: this,
+//                        success: function(f){
+//                            Rally.ui.notify.Notifier.showUpdate({artifact: f});
+//                            this.logger.log('_updateFeature save success', f);
+//                            deferred.resolve();
+//                        }
+//                    });
+//                } else {
+//                    this.logger.log('_updateFeature unsuccessful');
+//                    var msg = Ext.String.format("{0} update failed [Error:  {1}]",formatted_id, operation.getError());
+//                    Rally.ui.notify.Notifier.showError({message: msg});
+//                    deferred.resolve();
+//                }
+//            }
+//        });
+//        return deferred;  
+//    },
+//    _getStoryTypeFromDisplayName: function(displayName){
+//        return displayName.replace(this.dodStatusDisplayPrefix,'',"i");
+//    },
+//    _fetchDoDFields: function(){
+//        var deferred = Ext.create('Deft.Deferred');
+//        var dod_fields = [];  
+//        Rally.data.ModelFactory.getModel({
+//            type: this.portfolioItemL1,
+//            scope: this,
+//            success: function(model) {
+//                var fields = model.getFields();
+//                var re = new RegExp("^" + this.dodStatusPrefix ,"i");
+//                Ext.each(fields, function(f){
+//                    if (re.test(f.name)){
+//                        this.exportFieldMapping[f.name] = this._getStoryTypeFromDisplayName(f.displayName);
+//                        dod_fields.push(f);
+//                    }
+//                },this);
+//                deferred.resolve(dod_fields);
+//            }
+//        });
+//        return deferred;  
+//    },
+//    _renderDodColumn: function(v,m,r){
+//            var data;
+//
+//            var editableValues = ['Required','Exemption Requested'];
+//
+//            if (typeof v == "object") {
+//                var link_text= Ext.String.format('{0}: {1}', v.FormattedID, v.Name); 
+//                return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ v.ObjectID, text: link_text});
+//            } else {
+//                if (Ext.Array.contains(editableValues, v) || v == null ){
+//                    // add a css selector to the td html class attribute we can use it after grid is ready to render the slider
+//                    m.tdCls = m.tdCls + 'editable-status';
+//                }
+//            } 
+//            return v; 
+//    },
+//   
+//    _getColumnCfgs: function(){
+//        var noEntryText = this.noEntryText; 
+//        var columns = 
+//            [{
+//                xtype: 'rallyrowactioncolumn',
+//                rowActionsFn: function(record){
+//                    return [{
+//                        text: 'Set Required', 
+//                        record: record, 
+//                        handler: function(record){alert('hi');}
+//                    },{
+//                        text: 'Set Exemption Requested', 
+//                        record: record, 
+//                        handler: function(record){alert('hi');}
+//                    },{
+//                        text: 'Set Exemption Approved', 
+//                        record: record, 
+//                        handler: function(record){alert('hi');}
+//                    }];
+//                } 
+//            },{text:'Feature',
+//             dataIndex:'FormattedID',
+//             flex: 1,
+//             renderer: function(v,m,r){
+//                 var link_text= Ext.String.format('{0}: {1}', v, r.get('Name')); 
+//                 return Rally.nav.DetailLink.getLink({record: r.get('_ref'), text: link_text});
+//             }
+//          }];
+//        
+//        var editor_store = Ext.create('Ext.data.Store', {
+//            fields: ['name'],
+//            data : [
+//                {"name":"Required"},
+//                {"name":"Exemption Requested"},
+//                {"name":"Exemption Approved"}
+//                //...
+//            ]
+//        });
+//        
+//        Ext.each(this.dodFeatureFields, function(f){
+//            var col = {
+//                  //xtype: 'container',
+//                  text: this._getStoryTypeFromDisplayName(f.displayName),  //.replace(this.dodStatusDisplayPrefix,'',"i"),
+//                  dataIndex: f.name,
+//                  renderer: function(v,m,r){
+//                      if (typeof v == "object"){
+//                          var link_text= Ext.String.format('{0}', v.FormattedID); 
+//                          return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ v.ObjectID, text: link_text});
+//                      }
+//                      if (v && v.length > 0){
+//                          return v;
+//                      } 
+//                      return noEntryText;
+//                  },
+//                  editor: {
+//                      xtype: 'combobox',
+//                      store: editor_store,
+//                      displayField: "name",
+//                      valueField: "name",
+//                      allowBlank: true,
+//                      emptyText: noEntryText
+//                  }
+//
+//            };
+//            columns.push(col);
+//        },this);
+//        return columns;
+//    },
+//    _createGrid: function(store){
+//        if (this._getGrid()){
+//            this._getGrid().destroy();
+//        } 
+//
+//        var columns = this._getColumnCfgs();
+//        
+//        this._getBodyContainer().add({
+//            xtype: 'rallygrid',
+//            itemId: 'rally-grid',
+//            margin: 10,
+//            store: store, 
+//            scope: this,
+//            columnCfgs: columns,
+//            showRowActionsColumn: true,
+//            listeners: {
+//                beforeedit: function(editor, e){
+//                    if (typeof e.value == "object") {
+//                        e.cancel = true; 
+//                        return false; 
+//                    }
+//                }
+//            },
+//            plugins: [
+//                Ext.create('Ext.grid.plugin.CellEditing', {
+//                    clicksToEdit: 1
+//                })
+//            ],
+//        });
+//        
+//    },
+//    _getGrid: function(){
+//        return this.down('#rally-grid')
+//    },
+//    _clearGrid: function(){
+//        if (this._getGrid()){
+//            this._getGrid().destroy();            
+//        }
+//    },
+//    _buildGrid: function(cb){
+//        this.logger.log('_buildGrid');
+//        if (cb.getValue() == null){
+//            return;
+//        }
+//        this._clearGrid();
+//        
+//        this.setLoading(true);
+//        
+//        this._fetchFeatures(this.releaseField, cb.getValue()).then({
+//            scope: this,
+//            success: function(store){
+//                this._createGrid(store);
+//                this.setLoading(false);
+//            }
+//        
+//        });
+//    },
+//
+//    _fetchFeatures: function(releaseField, releaseValue){
+//        var deferred = Ext.create('Deft.Deferred');
+//        var dod_fields = [];
+//        Ext.each(this.dodFeatureFields, function(f){
+//            dod_fields.push(f.name)
+//        });
+//        var fetch_fields = _.union(['FormattedID','Name','_ref','Release'], dod_fields); 
+//        this.logger.log('_fetchFeatures',fetch_fields, releaseField,releaseValue);
+//        Ext.create('Rally.data.wsapi.Store',{
+//            fetch: fetch_fields,
+//            model: this.portfolioItemL1,
+//            autoLoad: true,
+//            filters: [{
+//                property: releaseField,
+//                value: releaseValue
+//            }],
+//            listeners: {
+//                scope: this,
+//                load: function(store, records, success){
+//                    this.logger.log('_fetchFeatures load', records.length, success);
+//                    var feature_oids = _.map(records, function(r){return r.get('ObjectID')});
+//                    this.featureRecords = records; 
+//                    this._fetchChildStories(feature_oids, releaseValue).then({
+//                        scope: this,
+//                        success: function(story_records){
+//                            this.logger.log('_fetchChildStories', feature_oids, story_records);
+//                            var store = this._buildCustomStore(records, story_records)
+//                            deferred.resolve(store);
+//                        }
+//                    });
+//                }
+//            }
+//        });
+//        return deferred;  
+//    },
+//    _fetchChildStories: function(feature_oids, releaseValue){
+//        var deferred = Ext.create('Deft.Deferred');
+//        
+//        var find = {
+//                "_TypeHierarchy": 'HierarchicalRequirement',
+//                "__At": "current"
+//            };
+//        find[this.storyTypeField] = {$ne: null};
+//        if (releaseValue){
+//            find[this.releaseField] = releaseValue;
+//        } else {
+//            find[this.releaseField] = null;
+//        }
+//      //  find[this.releaseField] = releaseValue;  
+//        this.logger.log('_fetchChildStories releaseValue',releaseValue, releaseValue == null);
+//        var chunker = Ext.create('Rally.technicalservices.data.Chunker',{
+//            fetch: ['FormattedID',this.storyTypeField, this.releaseField, 'PortfolioItem','ObjectID','Name'],
+//            find: find,
+//            chunkField: "PortfolioItem",
+//            chunkOids: feature_oids
+//        });
+//        chunker.load().then({
+//            scope: this,
+//            success: function(story_records){
+//                this.logger.log('_fetchChildStories', story_records.length, story_records);
+//                deferred.resolve(story_records);
+//            }
+//        });
+//        return deferred;
+//    },
+//    _buildCustomStore: function(features, stories){
+//         var feature_hash = {};
+//        Ext.each(stories, function(s){
+//            var pi = s.get('PortfolioItem');
+//            feature_hash[pi] = feature_hash[pi] || [];
+//            feature_hash[pi].push(s.getData());
+//        });
+//        this.featureStoryHash = feature_hash;
+//        
+//       this.logger.log('_buildCustomStore feature_hash', feature_hash);
+//        var data = []; 
+//        
+//        Ext.each(features, function(f){
+//            var rec = {'FormattedID':f.get('FormattedID'),
+//                    'Name': f.get('Name'), 
+//                    '_ref': f.get('_ref'), 
+//                    'ObjectID': f.get('ObjectID'),
+//                    'Release': f.get('Release') || ''
+//            };
+//            Ext.each(this.dodFeatureFields, function(dod_f){
+//                var dod_type = this._getStoryTypeFromDisplayName(dod_f.displayName); //.replace(this.dodStatusDisplayPrefix,'');
+//                var story = null;  
+//                Ext.each(feature_hash[f.get('ObjectID')], function(s){
+//                    this.logger.log('_buildCustomStore associated stories',s[this.storyTypeField],dod_type,dod_f.displayName);
+//                    if (s[this.storyTypeField] == dod_type){
+//                        story = s;
+//                        return false;
+//                    }
+//                }, this);
+//   
+//                if (story){
+//                    rec[dod_f.name] = story;
+//                } else  {
+//                    rec[dod_f.name] = f.get(dod_f.name);
+//                } 
+//            },this);
+//            this.logger.log('feature data',rec);
+//            data.push(rec);
+//        }, this);
+//        this.exportData = data;  
+//    
+//        return Ext.create('Rally.data.custom.Store',{
+//            autoSync: true,
+//            data: data
+//        });
+//    },
+//    _hasStory: function(fieldType, feature){
+//        console.log(fieldType, feature, feature.get(fieldType));
+//        return false; 
+//    },
+//    _getColumnCfgs2: function(){
+//        var noEntryText = this.noEntryText; 
+//        var dodFields = this.dodFeatureFields;
+//        var hasStory = this._hasStory;
+//        var columns = 
+//            [{
+//                xtype: 'rallyrowactioncolumn',
+//                rowActionsFn: function(record){
+//                    return [{
+//                        text: 'Set Required', 
+//                        record: record,
+//                        scope: this,
+//                        handler: function(item){
+//                            Ext.each(dodFields, function(f){
+//                                if (!hasStory(f.name, item.record)){
+//                                    item.record.set(f.name, 'Required');                                    
+//                                }
+//                            });
+//                        }
+//                    },{
+//                        text: 'Set Exemption Requested', 
+//                        record: record, 
+//                        scope: this,
+//                        handler: function(item){
+//                            Ext.each(dodFields, function(f){
+//                                if (!hasStory(f.name, item.record)){
+//                                    item.record.set(f.name, 'Exemption Requested');
+//                                }
+//                            });
+//                        }
+//                    }];
+//               } 
+//            },{text:'Feature',
+//             dataIndex:'FormattedID',
+//             flex: 1,
+//             renderer: function(v,m,r){
+//                 var link_text= Ext.String.format('{0}: {1}', v, r.get('Name')); 
+//                 return Rally.nav.DetailLink.getLink({record: r.get('_ref'), text: link_text});
+//             }
+//          }];
+//        
+//        var editor_store = Ext.create('Ext.data.Store', {
+//            fields: ['name'],
+//            data : [
+//                {"name":"Required"},
+//                {"name":"Exemption Requested"},
+//                {"name":"Exemption Approved"}
+//                //...
+//            ]
+//        });
+//        
+//        Ext.each(this.dodFeatureFields, function(f){
+//            var col = {
+//                  //xtype: 'container',
+//                  text: this._getStoryTypeFromDisplayName(f.displayName),  //.replace(this.dodStatusDisplayPrefix,'',"i"),
+//                  dataIndex: f.name,
+//                  renderer: function(v,m,r){
+//
+////                      if (typeof v == "object"){
+////                          var link_text= Ext.String.format('{0}', v.FormattedID); 
+////                          return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ v.ObjectID, text: link_text});
+////                      }
+//                      if (v && v.length > 0){
+//                          return v;
+//                      } 
+//                      return noEntryText;
+//                  },
+////                  editor: {
+////                      xtype: 'combobox',
+////                      store: editor_store,
+////                      displayField: "name",
+////                      valueField: "name",
+////                      allowBlank: true,
+////                      emptyText: noEntryText
+////                  }
+//
+//            };
+//            columns.push(col);
+//        },this);
+//        return columns;
+//    },
+//});
 Ext.define('CustomApp', {
     extend: 'Rally.app.App',
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
     items: [
-        {xtype:'container',itemId:'button_box', layout: {type:'hbox'}, padding: 5},
-        {xtype:'container',itemId:'display_box', padding: 25},
+        {xtype:'container',
+            itemId:'header', 
+            layout: {type:'hbox'}, 
+            padding: 5},
+        {xtype:'container',itemId:'display_box', padding: 5, layout: {type: 'fit'}},
+        {xtype:'container',itemId:'footer', padding: 5, layout: {type: 'hbox'}}, 
         {xtype:'tsinfolink'}
     ],
     config: {
         releaseField: 'c_CodeDeploymentSchedule',
         releaseFieldLabel: 'Deployment Schedule',
         storyTypeField: 'c_DoDStoryType',
-        portfolioItemL1: 'PortfolioItem/Feature',
+        portfolioItemFeature: 'PortfolioItem/Feature',
         dodStatusPrefix: 'c_DoDStatus',
         dodStatusDisplayPrefix: 'DoD Status: ',
         requiredValue: 'Required'
@@ -579,7 +2051,17 @@ Ext.define('CustomApp', {
         'Name': 'Name'
     },
     dodFeatureFields: null,
+    /**
+     * featureArtifactHash:  a hash of arrays that hold the artifacts that contain dod stories for each feature
+     * 
+     */
+    featureArtifactHash: null,
     featureRecords: null, 
+    //UI configurations
+    buttonWidth: 75, 
+    buttonMargin: 10,
+    noEntryText: '--',
+    
     launch: function() {
         this._fetchDoDFields().then({
             scope: this,
@@ -589,137 +2071,335 @@ Ext.define('CustomApp', {
             }
         });
     },
-    _initialize: function(){
-        this.down('#button_box').add({
-            xtype: 'rallyfieldvaluecombobox',
-            model: 'UserStory',
-            itemId: 'cb-release',
-            field: this.releaseField,
-            fieldLabel: this.releaseFieldLabel,
-            labelWidth: 175,
-            margin: 10,
-            labelAlign: 'right',
+    _getFeatureGrid: function(){
+        return this.down('#grid-feature');
+    },
+    _buildFeatureGrid: function(releaseValue){
+        
+        this._clearGrid(); 
+        var fetch = _.union(['FormattedID','Name','_ref','Release'], _.keys(this.exportFieldMapping)); 
+        
+        this.down('#display_box').add({
+            xtype: 'rallygrid',
+            itemId: 'rally-grid',
+            showRowActionsColumn: false,
+            storeConfig: {
+                model: this.portfolioItemFeature,
+                fetch: fetch,
+                autoLoad: true,
+                filters: [{
+                    property: this.releaseField,
+                    value: releaseValue
+                }]
+            },
+          listeners: {
+              beforeedit: function(editor, e){
+                  var storyTypeValue = this._getStoryKey(e.field);
+                  if (this._findStoryForFeature(e.record,this.featureArtifactHash,this.storyTypeField,storyTypeValue)){
+                      e.cancel = true;
+                      return false;
+                  }
+              },
+              scope: this
+            },
+            columnCfgs: this._getColumnCfgs2()
+        });
+    },
+    _fetchArtifactsWithStoryType: function(releaseValue){
+        var deferred = Ext.create('Deft.Deferred');
+        
+        var storyTypeField = this.storyTypeField; 
+        var releaseField = this.releaseField; 
+        this.logger.log('_fetchArtifactsWithStoryType',releaseField,releaseValue,storyTypeField);
+        Ext.create('Rally.data.wsapi.Store',{
+            model: 'HierarchicalRequirement',
+            autoLoad: true,
+            context: {project: null},
+            filters: [{
+                property: storyTypeField,
+                operator: '!=',
+                value: ''
+            },{
+                property: releaseField,
+                value: releaseValue || ''
+            },{
+                property: 'PortfolioItem',
+                operator: '!=',
+                value: null
+            }],
+            fetch: ['FormattedID',storyTypeField, releaseField, 'PortfolioItem','ObjectID','Name'],
             listeners: {
                 scope: this,
-                change: this._buildGrid,
-                //ready: this._buildGrid
-                
+                load: function(store, records, success){
+                    this.logger.log('_fetchArtifactsWithStoryType', records.length, success);
+                    if (success){
+                        this.featureArtifactHash = this._buildFeatureArtifactHash(records);
+                    } else {
+                        this.featureArtifactHash = null; 
+                        Rally.ui.notify.Notifier.showError('Could not load artifacts with release ' + releaseValue || 'null')
+                        this.logger.log('_fetchArtifactsWithStoryType failure');
+                    }
+                    deferred.resolve();
+                }
             }
         });
-        this.down('#button_box').add({
+        
+        return deferred; 
+    },
+    _buildFeatureArtifactHash: function(artifacts){
+        var hash = {};
+        Ext.each(artifacts, function(artifact){
+            var pi = artifact.get('PortfolioItem');
+            if (pi){
+                
+                hash[pi.ObjectID.toString()] = hash[pi.ObjectID] || [];
+                hash[pi.ObjectID.toString()].push(artifact);                
+            }
+        });
+        return hash;  
+    },
+
+    _getExportButton: function(){
+        return this.down('#btn-export');
+    },
+    _getUpdateButton: function(){
+        return this.down('#btn-update');
+    },
+    _getHeaderContainer: function(){
+        return this.down('#header');
+    },
+    _getFooterContainer: function(){
+        return this.down('#footer');
+    },
+    _getBodyContainer: function(){
+        return this.down('#display_box');
+    },
+    _getReleaseCombo: function(){
+        return this.down('#cb-release');
+    },
+    _initialize: function(){
+        this._getHeaderContainer().add({
+                xtype: 'rallyfieldvaluecombobox',
+                model: 'UserStory',
+                itemId: 'cb-release',
+                field: this.releaseField,
+                fieldLabel: this.releaseFieldLabel,
+                labelWidth: 150,
+                margin: 10,
+                labelAlign: 'right',
+                listeners: {
+                    scope: this,
+                    change: this._refreshDisplay 
+                }
+        });
+        this._getHeaderContainer().add({
+            xtype: 'component',
+            flex: 1
+        });
+        this._getHeaderContainer().add({
+                xtype: 'rallybutton',
+                text: 'Export',
+                itemId: 'btn-export',
+                margin: 10,
+                scope: this,
+                width: this.buttonWidth,
+                handler: this._export
+        });
+        
+       
+       this._getFooterContainer().add({
+           xtype: 'component',
+           flex: 1
+       });
+       this._getFooterContainer().add({
             xtype: 'rallybutton',
             text: 'Update',
+            itemId: 'btn-update',
+            width: this.buttonWidth,
             margin: 10,
             scope: this, 
             handler: this._update
         });
-        this.down('#button_box').add({
-            xtype: 'rallybutton',
-            text: 'Export',
-            margin: 10,
+    },
+    _refreshDisplay: function(cb){
+        this.setLoading(true);
+        var releaseValue = cb.getValue();  
+        this._fetchArtifactsWithStoryType(releaseValue).then({
             scope: this,
-            handler: this._export
+            success: function(){
+                this._buildFeatureGrid(releaseValue);
+                this.setLoading(false);
+            }
         });
     },
     _export: function(){
-        this.logger.log('_export');
-        var grid = this.down('#rally-grid');
-        if (this.exportData && this.exportData.length > 0){
-            var code_deployment = this.down('#cb-release').getValue() || 'none';  
-            var filename = Ext.String.format('dod-status-{0}.csv',code_deployment);
-            var text = Rally.technicalservices.FileUtilities.convertDataArrayToCSVText(this.exportData, this.exportFieldMapping);
-            Rally.technicalservices.FileUtilities.saveTextAsFile(text, filename);
-        } else {
-            Rally.ui.notify.Notifier.showWarning({message: 'No data to export'});
-        }
+        var grid = this._getGrid();
+        this.logger.log('_export',grid);
+
+        var code_deployment = this._getReleaseCombo().getValue() || 'none';  
+        var filename = Ext.String.format('dod-status-{0}.csv',code_deployment);
+
+        var csv = Rally.technicalservices.FileUtilities.getCSVFromGrid(grid).then({
+            scope: this,
+            success: function(csv){
+                if (csv && csv.length > 0){
+                    Rally.technicalservices.FileUtilities.saveCSVToFile(csv,filename);
+                } else {
+                    Rally.ui.notify.Notifier.showWarning({message: 'No data to export'});
+                }
+                
+            }
+        });
     },  
     _update: function(){
         this.logger.log('_update');
         
-        var grid = this.down('#rally-grid');
+        var grid = this._getGrid();
         if (grid == null){
             Rally.ui.notify.Notifier.showWarning({message: 'No records to update'});
             return;  
         }
         
-        var store = grid.getStore(); 
-        var updatedRecords = store.getUpdatedRecords();    
-        this.logger.log('_update', store, updatedRecords);
-        var features_to_update = [];
+        var artifactsToCreate = [];
         var dod_re = new RegExp(this.dodStatusPrefix);
-        //Ext.each(updatedRecords, function(r){
+
+        var store = grid.getStore(); 
+        var promises = [];  
+        var createTriggerValue = 'Required';
+        var storyTypeField = this.storyTypeField; 
+        var artifactFeatureHash = this.featureArtifactHash;
+        
+        var newArtifacts = [];
         for (var i=0; i<store.totalCount; i++){
             
             var r = store.getAt(i);
-            var obj = r.getData();
-            var raw_obj = r.raw;
+            if (!_.isEmpty(r.getChanges())){
+                promises.push(r.save());
+            }
             
-            console.log('rec', r,obj,raw_obj);
-
+            var obj = r.getData();
             var keys = _.keys(obj);
-            var stories_to_add = [];
-            var update_feature = {
-                    newStories: [], 
-                    updatedFields: {}, 
-                    _ref: obj._ref, 
-                    FormattedID: obj.FormattedID, 
-                    ObjectID: obj.ObjectID,
-                    updateFlag: false};
-
             Ext.each(keys, function(key){
                 if (dod_re.test(key)){
-                    if (obj[key] === 'Required'){
-                        update_feature.newStories.push(key); 
+                    var storyTypeValue = this._getStoryKey(key);
+                    var story = this._findStoryForFeature(r, artifactFeatureHash, storyTypeField, storyTypeValue);
+                    if (story == null) {
+                        if (obj[key] === createTriggerValue){
+                            var newArtifact = {
+                                feature: obj
+                            };
+                            newArtifact[storyTypeField] = key;
+                            newArtifacts.push(newArtifact); 
+                        }
+                       
                     }
-                    if (raw_obj[key] != obj[key]){
-                        update_feature.updatedFields[key] = obj[key]; 
+
+                }
+            }, this);
+        }
+
+        if (promises.length > 0){
+            Deft.Promise.all(promises).then({
+                scope: this,
+                success: function(results){
+                    Ext.each(results, function(res){
+                        if (typeof res == 'object'){
+                            Rally.ui.notify.Notifier.showUpdate({artifact: res});
+                        } else {
+                            Rally.ui.notify.Notifier.showError({message: res});
+                        }
+                    });
+                    this._createStories(newArtifacts);
+                 }
+            });
+        } else {
+            this._createStories(newArtifacts);
+        }
+    },
+    _saveRecord: function(record){
+       var deferred = Ext.create('Deft.Deferred');
+       
+        record.save({
+           callback: function(result, operation) {
+               if(operation.wasSuccessful()) {
+                   deferred.resolve(result);
+               } else {
+                   deferred.resolve(operation.getError());
+               }
+           }
+           });
+        return deferred;  
+    },
+    _createStories: function(newArtifacts){
+        //Create Stories 
+        var releaseValue = this._getReleaseCombo().getValue();
+        var store = this._getGrid().getStore();  
+        var storyTypeField = this.storyTypeField; 
+        var releaseField = this.releaseField; 
+        
+        var copyRequests = [];
+        Ext.each(newArtifacts, function(a){
+            var cr = this._buildCopyRequest(a,storyTypeField,releaseField, releaseValue);
+            copyRequests.push(cr);
+        },this);
+        
+        this.logger.log('_createStories', copyRequests);
+        
+        if (copyRequests.length > 0){
+            var dlg_stories = Ext.create('Rally.technicalservices.dialog.TemplateCopier',{
+                copyRequests: copyRequests,
+                templateArtifactKeyField: storyTypeField,
+                title: "Create Stories",
+                listeners: {
+                    scope: this,
+                    artifactscreated: function(requests){
+                        this.logger.log('artifacts Created',requests);
+                        this._updateGrid(requests);
                     }
                 }
             });
-            if (update_feature.newStories.length > 0 || !_.isEmpty(update_feature.updatedFields)){
-                features_to_update.push(update_feature);
-            }
-        }
-
-        this.logger.log('_update',features_to_update);
-
-        this._updateFeatures(features_to_update).then({
-            scope: this,
-            success: function(){
-                this._createStories(features_to_update);                
-            }
-        
-        });
-    },
-    _createStories: function(featuresToUpdate){
-        //Create Stories 
-        var code_deployment_val = this.down('#cb-release').getValue();
-        var copy_requests = [];
-        Ext.each(featuresToUpdate, function(f){
-            if (f.newStories.length > 0){
-                Ext.each(f.newStories, function(ns){
-                    var cr = {};
-                    cr[this.storyTypeField] = this._getStoryKey(ns);  
-                    cr['FormattedID'] = f.FormattedID;
-                    cr['overrideFields'] ={};
-                    cr.overrideFields['PortfolioItem'] = f._ref;
-                    cr.overrideFields[this.releaseField] = code_deployment_val;
-                    cr.overrideFields['Name'] = f.FormattedID;
-                    cr.overrideFields['Release'] = f.Release;
-                    copy_requests.push(cr);
-                },this);
-            }
-        },this);
-        
-        this.logger.log('_createStories', copy_requests);
-        if (copy_requests.length > 0){
-            var dlg_stories = Ext.create('Rally.technicalservices.dialog.TemplateCopier',{
-                copyRequests: copy_requests,
-                templateArtifactKeyField: this.storyTypeField,
-                title: "Create Stories",
-            });
             dlg_stories.show();
         }
+    },
+    
+    _buildCopyRequest: function(newArtifact,storyTypeField, releaseField, releaseValue){
+        var cr = {};
+        cr[storyTypeField] = this._getStoryKey(newArtifact[storyTypeField]);  
+        cr['ObjectID'] = newArtifact.feature.ObjectID;
+        cr['FormattedID'] = newArtifact.feature.FormattedID;
+        cr['overrideFields'] ={};
+        cr.overrideFields['PortfolioItem'] = newArtifact.feature._ref;
+        cr.overrideFields[releaseField] = releaseValue;
+        cr.overrideFields['Name'] = newArtifact.feature.FormattedID;
+        //cr.overrideFields['Release'] = newArtifact.feature.Release;
+        return cr;
+    },
+    
+    _getStoryTypeFieldNameFromDisplayName: function(displayName){
+        this.logger.log('_getStoryTypeFieldNameFromDisplayName',displayName);
+        var fieldName = null; 
+        Ext.Object.each(this.exportFieldMapping, function(key, val){
+            if (val === displayName){
+                fieldName = key;
+                return false;
+            }
+        });
+        return fieldName; 
+    },
+    _updateGrid: function(requests){
+      this.logger.log('_updateGrid', requests);
+      Ext.each(requests, function(r){
+          if (typeof r.resultArtifact == 'object'){
+              var featureOid = r.ObjectID;  
+              this.featureArtifactHash[featureOid] = this.featureArtifactHash[featureOid] || []; 
+              this.featureArtifactHash[featureOid].push(r.resultArtifact);
+          } else {
+              var msg = Ext.String.format('Unable to create {0} artifact for {1}',r[this.storyTypeField],r.FormattedID);
+              Rally.ui.notify.Notifier.showError({message: msg});
+          }
+  }, this);
+
+        this._getGrid().refresh(); 
     },
     _getStoryKey: function(fieldName){
         var displayName = fieldName;
@@ -731,69 +2411,6 @@ Ext.define('CustomApp', {
         });
         return this._getStoryTypeFromDisplayName(displayName); //.replace(this.dodStatusDisplayPrefix,''); 
     },
-    _updateFeatures: function(featureObjs){
-        var deferred = Ext.create('Deft.Deferred');
-        Rally.data.ModelFactory.getModel({
-            type: this.portfolioItemL1,
-            scope: this,
-            success: function(model) {
-                this.logger.log('_updateFeatures model loaded');
-                var promises = []; 
-                Ext.each(featureObjs, function(obj){
-                    if (!_.isEmpty(obj.updatedFields)){
-                        promises.push(function(){this._updateFeature(model, obj)});
-                    }
-                }, this);
-                
-                if (promises.length == 0){
-                    deferred.resolve();
-                } else {
-                    Deft.Chain.sequence(promises, this).then({
-                        scope: this,
-                        success: function(messages){
-                            this.logger.log('_updateFeatures promises completed');
-                            Rally.ui.notify.Notifier.show({message: messages.join("\n")});
-                            deferred.resolve();
-                        }
-                    });
-                }
-            }
-        });
-        return deferred;  
-    },
-    _updateFeature: function(model, feature){
-        var deferred = Ext.create('Deft.Deferred');
-        var fetch = _.keys(feature.updatedFields);
-        var formatted_id = feature.FormattedID;
-        this.logger.log('_updateFeature', feature);
-        model.load(feature.ObjectID, {
-            fetch: fetch,
-            scope: this,
-            callback: function(result, operation) {
-                this.logger.log('_updateFeature loaded', operation);
-                if(operation.wasSuccessful()) {
-                    this.logger.log('_updateFeature load success');
-                    Ext.Object.each(feature.updatedFields, function(field,value){
-                        this.logger.log('setting',feature.FormattedID, field,value);
-                        result.set(field,value);
-                    }, this);
-                    result.save().then({
-                        scope: this,
-                        success: function(f){
-                            var msg = formatted_id + " updated successfully";
-                            this.logger.log('_updateFeature save success', msg);
-                            deferred.resolve(msg);
-                        }
-                    });
-                } else {
-                    this.logger.log('_updateFeature unsuccessful');
-                    var msg = Ext.String.format("{0} update failed [Error:  {1}]",formatted_id, operation.getError());
-                    deferred.resolve(msg);
-                }
-            }
-        });
-        return deferred;  
-    },
     _getStoryTypeFromDisplayName: function(displayName){
         return displayName.replace(this.dodStatusDisplayPrefix,'',"i");
     },
@@ -801,7 +2418,7 @@ Ext.define('CustomApp', {
         var deferred = Ext.create('Deft.Deferred');
         var dod_fields = [];  
         Rally.data.ModelFactory.getModel({
-            type: this.portfolioItemL1,
+            type: this.portfolioItemFeature,
             scope: this,
             success: function(model) {
                 var fields = model.getFields();
@@ -815,128 +2432,46 @@ Ext.define('CustomApp', {
                 deferred.resolve(dod_fields);
             }
         });
-        
         return deferred;  
     },
-    _renderDodColumn: function(v,m,r){
-            var data;
-
-            var editableValues = ['Required','Exemption Requested'];
-
-            if (typeof v == "object") {
-                var link_text= Ext.String.format('{0}: {1}', v.FormattedID, v.Name); 
-                return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ v.ObjectID, text: link_text});
-            } else {
-                if (Ext.Array.contains(editableValues, v) || v == null ){
-                    // add a css selector to the td html class attribute we can use it after grid is ready to render the slider
-                    m.tdCls = m.tdCls + 'editable-status';
-                }
-            } 
-            return v; 
-    },
-    _getColumnCfgs: function(){
-        var columns = 
-            [{text:'Feature',
-             dataIndex:'FormattedID',
-             flex: 1,
-             renderer: function(v,m,r){
-                 var link_text= Ext.String.format('{0}: {1}', v, r.get('Name')); 
-                 return Rally.nav.DetailLink.getLink({record: r.get('_ref'), text: link_text});
-             }
-          }];
-        
-        var uneditableStatus = ['Exemption Approved'];
-        
-        var editor_store = Ext.create('Ext.data.Store', {
-            fields: ['name'],
-            data : [
-                {"name":"Required"},
-                {"name": "Exemption Requested"}
-                //...
-            ]
-        });
-        
-        Ext.each(this.dodFeatureFields, function(f){
-            console.log(f.name);
-            var col = {
-                  //xtype: 'container',
-                  text: this._getStoryTypeFromDisplayName(f.displayName),  //.replace(this.dodStatusDisplayPrefix,'',"i"),
-                  dataIndex: f.name,
-                  renderer: function(v,m,r){
-                      if (typeof v == "object"){
-                          var link_text= Ext.String.format('{0}', v.FormattedID); 
-                          return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ v.ObjectID, text: link_text});
-                      }
-                      if (Ext.Array.contains(uneditableStatus, v)){
-                          m.tdCls = 'approved';
-                      }
-                      return v;
-                  },
-                  editor: {
-                      xtype: 'combobox',
-                      store: editor_store,
-                      displayField: "name",
-                      valueField: "name"
-                  }
-
-            };
-            columns.push(col);
-        },this);
-        return columns;
-    },
     _createGrid: function(store){
-        if (this.down('#rally-grid')){
-            this.down('#rally-grid').destroy();
+        if (this._getGrid()){
+            this._getGrid().destroy();
         } 
-        var uneditableValues = ['Exemption Approved'];
+
         var columns = this._getColumnCfgs();
-        this.down('#display_box').add({
+        
+        this._getBodyContainer().add({
             xtype: 'rallygrid',
             itemId: 'rally-grid',
+            margin: 10,
             store: store, 
-            showRowActionsColumn: false,
             scope: this,
             columnCfgs: columns,
-            selType: 'cellmodel',
+            showRowActionsColumn: true,
             listeners: {
                 beforeedit: function(editor, e){
                     if (typeof e.value == "object") {
                         e.cancel = true; 
                         return false; 
                     }
-                    if (e.value === 'Exemption Approved'){
-                        e.cancel = true; 
-                        return false;
-                    }
                 }
             },
             plugins: [
                 Ext.create('Ext.grid.plugin.CellEditing', {
-                    clicksToEdit: 1,
-                    listeners: {
-                        beforeedit: function(grid, f, r, v){
-                            console.log('beforeedit');
-                            if (typeof v == "object") {
-                                return false; 
-                            }
-                        }
-                    }
+                    clicksToEdit: 1
                 })
             ],
         });
         
     },
-
-    _buildGrid: function(cb){
-        if (cb.getValue() == null){
-            return;
+    _getGrid: function(){
+        return this.down('#rally-grid');
+    },
+    _clearGrid: function(){
+        if (this._getGrid()){
+            this._getGrid().destroy();            
         }
-        this._fetchFeatures(this.releaseField, cb.getValue()).then({
-            scope: this,
-            success: function(store){
-                this._createGrid(store);
-            }
-        });
     },
 
     _fetchFeatures: function(releaseField, releaseValue){
@@ -1004,52 +2539,103 @@ Ext.define('CustomApp', {
         });
         return deferred;
     },
-    _buildCustomStore: function(features, stories){
-        
-        var feature_hash = {};
-        Ext.each(stories, function(s){
-            var pi = s.get('PortfolioItem');
-            console.log(pi);
-            feature_hash[pi] = feature_hash[pi] || [];
-            feature_hash[pi].push(s.getData());
+    _findStoryForFeature: function(feature, artifactFeatureHash, storyTypeField, storyTypeValue){
+        var featureOid = feature.get('ObjectID');
+        var artifacts = artifactFeatureHash[featureOid.toString()];
+        var artifactFound = null;  
+        if (artifacts == undefined){
+            return artifactFound;
+        }
+        Ext.each(artifacts, function(artifact){
+            if (artifact.get('c_DoDStoryType') === storyTypeValue){
+               artifactFound = artifact; 
+               return false;  
+           } 
         });
+        return artifactFound;
+    },
+    _getColumnCfgs2: function(){
+        var noEntryText = this.noEntryText; 
+        var dodFields = this.dodFeatureFields;
+        var featureArtifactHash = this.featureArtifactHash;  
+        var findStory = this._findStoryForFeature;
+        var dodStatusDisplayPrefix = this.dodStatusDisplayPrefix; 
+        var me = this;  
         
-       this.logger.log('_buildCustomStore feature_hash', feature_hash);
-        var data = []; 
+        var columns = 
+            [{
+                xtype: 'rallyrowactioncolumn',
+                rowActionsFn: function(record){
+                    return [{
+                        text: 'Set Required', 
+                        record: record,
+                        scope: this,
+                        handler: function(item){
+
+                            Ext.each(dodFields, function(f){
+                                var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i")
+                                var story = findStory(item.record, featureArtifactHash,f.name, storyTypeValue);
+                                if (story == null){
+                                    item.record.set(f.name, 'Required');                                    
+                                }
+                            }, this);
+                        }
+                    },{
+                        text: 'Set Exemption Requested', 
+                        record: record, 
+                        scope: this,
+                        handler: function(item){
+                            Ext.each(dodFields, function(f){
+                                var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i")
+                                var story = findStory(item.record, featureArtifactHash,f.name, storyTypeValue);
+                                if (story == null){
+                                    item.record.set(f.name, 'Exemption Requested');
+                                }
+                            }, this);
+                        }
+                    }];
+               } 
+            },{text:'Feature',
+             dataIndex:'FormattedID',
+             flex: 1,
+             renderer: function(v,m,r){
+                 var link_text= Ext.String.format('{0}: {1}', v, r.get('Name')); 
+                 return Rally.nav.DetailLink.getLink({record: r.get('_ref'), text: link_text});
+             },
+             exportRenderer: function(v,m,r){
+                 return Ext.String.format('{0}: {1}', v, r.get('Name')); 
+             }
+          }];
         
-        Ext.each(features, function(f){
-            var rec = {'FormattedID':f.get('FormattedID'),
-                    'Name': f.get('Name'), 
-                    '_ref': f.get('_ref'), 
-                    'ObjectID': f.get('ObjectID'),
-                    'Release': f.get('Release') || ''
+        Ext.each(this.dodFeatureFields, function(f){
+            var col = {
+                  //xtype: 'container',
+                  text: this._getStoryTypeFromDisplayName(f.displayName),  //.replace(this.dodStatusDisplayPrefix,'',"i"),
+                  dataIndex: f.name,
+                  renderer: function(v,m,r){
+                      var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i");
+                      var story = findStory(r, featureArtifactHash,f.name, storyTypeValue);
+                      if (story){
+                        var link_text= Ext.String.format('{0}', story.get('FormattedID')); 
+                        return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ story.get('ObjectID'), text: link_text});
+                      }
+                      return v || noEntryText;
+
+                  },
+                  exportRenderer: function(v,m,r){
+                      var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i");
+                      var story = findStory(r, featureArtifactHash,f.name, storyTypeValue);
+                      if (story){
+                        return Ext.String.format('{0}', story.get('FormattedID')); 
+                      }
+                      return v || noEntryText;
+                      
+                  }
             };
-            Ext.each(this.dodFeatureFields, function(dod_f){
-                var dod_type = this._getStoryTypeFromDisplayName(dod_f.displayName); //.replace(this.dodStatusDisplayPrefix,'');
-                var story = null;  
-                Ext.each(feature_hash[f.get('ObjectID')], function(s){
-                    this.logger.log('_buildCustomStore associated stories',s[this.storyTypeField],dod_type,dod_f.displayName);
-                    if (s[this.storyTypeField] == dod_type){
-                        story = s;
-                        return false;
-                    }
-                }, this);
-   
-                if (story){
-                    rec[dod_f.name] = story;
-                } else  {
-                    rec[dod_f.name] = f.get(dod_f.name);
-                } 
-            },this);
-            this.logger.log('feature data',rec);
-            data.push(rec);
-        }, this);
-        this.exportData = data;  
-        
-        return Ext.create('Rally.data.custom.Store',{
-            data: data
-        });
-    }
+            columns.push(col);
+        },this);
+        return columns;
+    },
 });
             
                Rally.launchApp('CustomApp', {
@@ -1081,6 +2667,10 @@ Ext.define('CustomApp', {
 	color: 'red';
 	background-color: 'green'
 	
+}
+
+.rightbutton {
+	align: 'right';
 }
     </style>
 
