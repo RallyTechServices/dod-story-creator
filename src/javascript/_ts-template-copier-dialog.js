@@ -24,7 +24,7 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
         templateArtifactHash: null,  //{}
         templateArtifactKeyField: 'c_StoryType',
         templateModel: 'HierarchicalRequirement',
-        templateCopyFields: ['c_DoDStoryType','Project','Name','Description'], //,'Release'],
+        templateCopyFields: ['c_DoDStoryType','Project','Name','Description','Release'],
         templateFilters: [{
             property: 'PortfolioItem',
             value: 'portfolioitem/feature/24797386560'
