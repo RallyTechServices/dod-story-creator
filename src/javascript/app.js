@@ -252,13 +252,10 @@ Ext.define('CustomApp', {
             
             var obj = r.getData();
             var keys = _.keys(obj);
-            console.log('update',obj,r);
             Ext.each(keys, function(key){
                 if (dod_re.test(key)){
                     var storyTypeValue = this._getStoryKey(key);
                     var story = this._findStoryForFeature(r, artifactFeatureHash, storyTypeField, storyTypeValue);
-
-                    console.log(key, obj[key],story);
                     if (story == null) {
                         if (obj[key] === createTriggerValue){
                             var newArtifact = {
@@ -346,7 +343,7 @@ Ext.define('CustomApp', {
         cr.overrideFields['PortfolioItem'] = newArtifact.feature._ref;
         cr.overrideFields[releaseField] = releaseValue;
         cr.overrideFields['Name'] = newArtifact.feature.FormattedID;
-        cr.overrideFields['Release'] = newArtifact.feature.Release;
+        //cr.overrideFields['Release'] = newArtifact.feature.Release;
         return cr;
     },
     
@@ -373,7 +370,6 @@ Ext.define('CustomApp', {
         
         Ext.each(requests, function(r){
             rec = feature_hash[r.FormattedID];
-            console.log(r.FormattedID, r.resultArtifact);
             if (typeof r.resultArtifact == 'object'){
                 var field = this._getStoryTypeFieldNameFromDisplayName(r[this.storyTypeField]);
                 rec.set(field, {FormattedID: r.resultArtifact.get('FormattedID'), ObjectID: r.resultArtifact.get('ObjectID')});
@@ -382,8 +378,6 @@ Ext.define('CustomApp', {
                 Rally.ui.notify.Notifier.showError({message: msg});
             }
         }, this);
-       // this._createGrid(store);
-
     },
     _getStoryKey: function(fieldName){
         var displayName = fieldName;
@@ -531,7 +525,6 @@ Ext.define('CustomApp', {
             return artifactFound;
         }
         Ext.each(artifacts, function(artifact){
-           console.log('_findStory',artifact.get('c_DoDStoryType'),storyTypeValue,storyTypeField);
             if (artifact.get('c_DoDStoryType') === storyTypeValue){
                artifactFound = artifact; 
                return false;  
@@ -600,7 +593,6 @@ Ext.define('CustomApp', {
                   renderer: function(v,m,r){
                       var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i");
                       var story = findStory(r, featureArtifactHash,f.name, storyTypeValue);
-                      console.log('story',story);
                       if (story){
                         var link_text= Ext.String.format('{0}', story.get('FormattedID')); 
                         return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ story.get('ObjectID'), text: link_text});
