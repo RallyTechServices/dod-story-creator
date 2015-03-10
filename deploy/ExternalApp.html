@@ -3,10 +3,10 @@
 <head>
     <title>Feature Definition of Done Story Creator</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Tue Mar 10 2015 10:54:01 GMT-0700 (PDT) -->
+    <!--  Build Date: Tue Mar 10 2015 10:58:12 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Mar 10 2015 10:54:01 GMT-0700 (PDT)";
+        var APP_BUILD_DATE = "Tue Mar 10 2015 10:58:12 GMT-0700 (PDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -2365,6 +2365,7 @@ Ext.define('CustomApp', {
     _buildCopyRequest: function(newArtifact,storyTypeField, releaseField, releaseValue){
         var cr = {};
         cr[storyTypeField] = this._getStoryKey(newArtifact[storyTypeField]);  
+        cr['ObjectID'] = newArtifact.feature.ObjectID;
         cr['FormattedID'] = newArtifact.feature.FormattedID;
         cr['overrideFields'] ={};
         cr.overrideFields['PortfolioItem'] = newArtifact.feature._ref;
@@ -2389,7 +2390,7 @@ Ext.define('CustomApp', {
       this.logger.log('_updateGrid', requests);
       Ext.each(requests, function(r){
           if (typeof r.resultArtifact == 'object'){
-              var featureOid = r.feature.ObjectID;  
+              var featureOid = r.ObjectID;  
               this.featureArtifactHash[featureOid] = this.featureArtifactHash[featureOid] || []; 
               this.featureArtifactHash[featureOid].push(r.resultArtifact);
           } else {

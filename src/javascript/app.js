@@ -339,6 +339,7 @@ Ext.define('CustomApp', {
     _buildCopyRequest: function(newArtifact,storyTypeField, releaseField, releaseValue){
         var cr = {};
         cr[storyTypeField] = this._getStoryKey(newArtifact[storyTypeField]);  
+        cr['ObjectID'] = newArtifact.feature.ObjectID;
         cr['FormattedID'] = newArtifact.feature.FormattedID;
         cr['overrideFields'] ={};
         cr.overrideFields['PortfolioItem'] = newArtifact.feature._ref;
@@ -363,7 +364,7 @@ Ext.define('CustomApp', {
       this.logger.log('_updateGrid', requests);
       Ext.each(requests, function(r){
           if (typeof r.resultArtifact == 'object'){
-              var featureOid = r.feature.ObjectID;  
+              var featureOid = r.ObjectID;  
               this.featureArtifactHash[featureOid] = this.featureArtifactHash[featureOid] || []; 
               this.featureArtifactHash[featureOid].push(r.resultArtifact);
           } else {
