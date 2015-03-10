@@ -360,25 +360,19 @@ Ext.define('CustomApp', {
         return fieldName; 
     },
     _updateGrid: function(requests){
-        this.logger.log('_updateGrid', requests);
-        this.getGrid().refresh(); 
-//        var store = this._getGrid().getStore();
-//        var feature_hash = {};
-//        for (var i=0; i<store.getTotalCount(); i++){
-//            var rec = store.getAt(i);
-//            feature_hash[rec.get('FormattedID')] = rec;
-//        }
-//        
-//        Ext.each(requests, function(r){
-//            rec = feature_hash[r.FormattedID];
-//            if (typeof r.resultArtifact == 'object'){
-//                var field = this._getStoryTypeFieldNameFromDisplayName(r[this.storyTypeField]);
-//                rec.set(field,);
-//            } else {
-//                var msg = Ext.String.format('Unable to create {0} artifact for {1}',r[this.storyTypeField],r.FormattedID);
-//                Rally.ui.notify.Notifier.showError({message: msg});
-//            }
-//        }, this);
+      this.logger.log('_updateGrid', requests);
+      Ext.each(requests, function(r){
+          if (typeof r.resultArtifact == 'object'){
+              var featureOid = r.feature.ObjectID;  
+              this.featureArtifactHash[featureOid] = this.featureArtifactHash[featureOid] || []; 
+              this.featureArtifactHash[featureOid].push(r.resultArtifact);
+          } else {
+              var msg = Ext.String.format('Unable to create {0} artifact for {1}',r[this.storyTypeField],r.FormattedID);
+              Rally.ui.notify.Notifier.showError({message: msg});
+          }
+  }, this);
+
+        this._getGrid().refresh(); 
     },
     _getStoryKey: function(fieldName){
         var displayName = fieldName;
