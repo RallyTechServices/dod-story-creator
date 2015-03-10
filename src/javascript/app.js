@@ -15,7 +15,7 @@ Ext.define('CustomApp', {
         releaseField: 'c_CodeDeploymentSchedule',
         releaseFieldLabel: 'Deployment Schedule',
         storyTypeField: 'c_DoDStoryType',
-        portfolioItemL1: 'PortfolioItem/Feature',
+        portfolioItemFeature: 'PortfolioItem/Feature',
         dodStatusPrefix: 'c_DoDStatus',
         dodStatusDisplayPrefix: 'DoD Status: ',
         requiredValue: 'Required'
@@ -25,6 +25,11 @@ Ext.define('CustomApp', {
         'Name': 'Name'
     },
     dodFeatureFields: null,
+    /**
+     * featureArtifactHash:  a hash of arrays that hold the artifacts that contain dod stories for each feature
+     * 
+     */
+    featureArtifactHash: null,
     featureRecords: null, 
     //UI configurations
     buttonWidth: 75, 
@@ -39,6 +44,82 @@ Ext.define('CustomApp', {
                 this._initialize();
             }
         });
+    },
+    _getFeatureGrid: function(){
+        return this.down('#grid-feature');
+    },
+    _buildFeatureGrid: function(releaseValue){
+        
+        var fetch = _.union(['FormattedID','Name','_ref','Release'], _.keys(this.exportFieldMapping)); 
+        
+        this.down('#display_box').add({
+            xtype: 'rallygrid',
+            itemId: 'rally-grid',
+            showRowActionsColumn: false,
+            storeConfig: {
+                model: this.portfolioItemFeature,
+                fetch: fetch,
+                autoLoad: true,
+                filters: [{
+                    property: this.releaseField,
+                    value: releaseValue
+                }]
+            },
+            columnCfgs: this._getColumnCfgs2()
+        });
+    },
+    _fetchArtifactsWithStoryType: function(releaseValue){
+        var deferred = Ext.create('Deft.Deferred');
+        
+        var storyTypeField = this.storyTypeField; 
+        var releaseField = this.releaseField; 
+        this.logger.log('_fetchArtifactsWithStoryType',releaseField,releaseValue,storyTypeField);
+        Ext.create('Rally.data.wsapi.Store',{
+            model: 'HierarchicalRequirement',
+            autoLoad: true,
+            context: {project: null},
+            filters: [{
+                property: storyTypeField,
+                operator: '!=',
+                value: ''
+            },{
+                property: releaseField,
+                value: releaseValue || ''
+            },{
+                property: 'PortfolioItem',
+                operator: '!=',
+                value: null
+            }],
+            fetch: ['FormattedID',storyTypeField, releaseField, 'PortfolioItem','ObjectID','Name'],
+            listeners: {
+                scope: this,
+                load: function(store, records, success){
+                    this.logger.log('_fetchArtifactsWithStoryType', records.length, success);
+                    if (success){
+                        this.featureArtifactHash = this._buildFeatureArtifactHash(records);
+                    } else {
+                        this.featureArtifactHash = null; 
+                        Rally.ui.notify.Notifier.showError('Could not load artifacts with release ' + releaseValue || 'null')
+                        this.logger.log('_fetchArtifactsWithStoryType failure');
+                    }
+                    deferred.resolve();
+                }
+            }
+        });
+        
+        return deferred; 
+    },
+    _buildFeatureArtifactHash: function(artifacts){
+        var hash = {};
+        Ext.each(artifacts, function(artifact){
+            var pi = artifact.get('PortfolioItem');
+            if (pi){
+                
+                hash[pi.ObjectID] = hash[pi.ObjectID] || [];
+                hash[pi.ObjectID].push(artifact);                
+            }
+        });
+        return hash;  
     },
 
     _getExportButton: function(){
@@ -56,6 +137,9 @@ Ext.define('CustomApp', {
     _getBodyContainer: function(){
         return this.down('#display_box');
     },
+    _getReleaseCombo: function(){
+        return this.down('#cb-release');
+    },
     _initialize: function(){
         this._getHeaderContainer().add({
                 xtype: 'rallyfieldvaluecombobox',
@@ -68,7 +152,7 @@ Ext.define('CustomApp', {
                 labelAlign: 'right',
                 listeners: {
                     scope: this,
-                    change: this._buildGrid,
+                    change: this._refreshDisplay 
                 }
         });
         this._getHeaderContainer().add({
@@ -99,20 +183,34 @@ Ext.define('CustomApp', {
             scope: this, 
             handler: this._update
         });
-        
-        this._getHeaderContainer().add();
+    },
+    _refreshDisplay: function(cb){
+        var releaseValue = cb.getValue();  
+        this._fetchArtifactsWithStoryType(releaseValue).then({
+            scope: this,
+            success: function(){
+                this._buildFeatureGrid(releaseValue);
+            }
+        });
     },
     _export: function(){
-        this.logger.log('_export');
-        var grid = this.down('#rally-grid');
-        if (this.exportData && this.exportData.length > 0){
-            var code_deployment = this.down('#cb-release').getValue() || 'none';  
-            var filename = Ext.String.format('dod-status-{0}.csv',code_deployment);
-            var text = Rally.technicalservices.FileUtilities.convertDataArrayToCSVText(this.exportData, this.exportFieldMapping);
-            Rally.technicalservices.FileUtilities.saveTextAsFile(text, filename);
-        } else {
-            Rally.ui.notify.Notifier.showWarning({message: 'No data to export'});
-        }
+        var grid = this._getGrid();
+        this.logger.log('_export',grid);
+
+        var code_deployment = this._getReleaseCombo().getValue() || 'none';  
+        var filename = Ext.String.format('dod-status-{0}.csv',code_deployment);
+
+        var csv = Rally.technicalservices.FileUtilities.getCSVFromGrid(grid).then({
+            scope: this,
+            success: function(csv){
+                if (csv && csv.length > 0){
+                    Rally.technicalservices.FileUtilities.saveCSVToFile(csv,filename);
+                } else {
+                    Rally.ui.notify.Notifier.showWarning({message: 'No data to export'});
+                }
+                
+            }
+        });
     },  
     _update: function(){
         this.logger.log('_update');
@@ -123,81 +221,82 @@ Ext.define('CustomApp', {
             return;  
         }
         
-        var store = grid.getStore(); 
-
-        this.logger.log('_update', store);
-        var features_to_update = [];
+        var artifactsToCreate = [];
         var dod_re = new RegExp(this.dodStatusPrefix);
 
+        var store = grid.getStore(); 
+        var promises = [];  
+        var createTriggerValue = 'Required';
+        var storyTypeField = this.storyTypeField; 
         for (var i=0; i<store.totalCount; i++){
             
             var r = store.getAt(i);
-            var obj = r.getData();
-            var raw_obj = r.raw;
+            if (!_.isEmpty(r.getChanges())){
+                promises.push(r.save());
+            }
             
+            var obj = r.getData();
             var keys = _.keys(obj);
-            var stories_to_add = [];
-            var update_feature = {
-                    newStories: [], 
-                    updatedFields: {}, 
-                    _ref: obj._ref, 
-                    FormattedID: obj.FormattedID, 
-                    ObjectID: obj.ObjectID,
-                    updateFlag: false};
-
             Ext.each(keys, function(key){
                 if (dod_re.test(key)){
-                    if (obj[key] === 'Required'){
-                        update_feature.newStories.push(key); 
-                    }
-                    if (raw_obj[key] != obj[key]){
-                        update_feature.updatedFields[key] = obj[key]; 
+                    if (obj[key] === createTriggerValue){
+                        var newArtifact = {
+                            feature: obj
+                        };
+                        newArtifact[storyTypeField] = key;
+                        newArtifacts.push(newArtifact); 
                     }
                 }
             });
-            if (update_feature.newStories.length > 0 || !_.isEmpty(update_feature.updatedFields)){
-                features_to_update.push(update_feature);
-            }
         }
 
-        this.logger.log('_update',features_to_update);
-
-        this._updateFeatures(features_to_update).then({
-            scope: this,
-            success: function(){
-                this._createStories(features_to_update);                
-            }
-        
-        });
+        if (promises.length > 0){
+            Deft.Promise.all(promises).then({
+                success: function(results){
+                    Ext.each(results, function(res){
+                        if (typeof res == 'object'){
+                            Rally.ui.notify.Notifier.showUpdate({artifact: res});
+                        } else {
+                            Rally.ui.notify.Notifier.showError({message: res});
+                        }
+                    });
+                    this._createStories(newArtifacts);
+                 }
+            });
+        }
     },
-    _createStories: function(featuresToUpdate){
+    _saveRecord: function(record){
+       var deferred = Ext.create('Deft.Deferred');
+       
+        record.save({
+           callback: function(result, operation) {
+               if(operation.wasSuccessful()) {
+                   deferred.resolve(result);
+               } else {
+                   deferred.resolve(operation.getError());
+               }
+           }
+           });
+        return deferred;  
+    },
+    _createStories: function(newArtifacts){
         //Create Stories 
-        var code_deployment_val = this.down('#cb-release').getValue();
-        var grid_store = this._getGrid().getStore();  
+        var releaseValue = this._getReleaseCombo().getValue();
+        var store = this._getGrid().getStore();  
+        var storyTypeField = this.storyTypeField; 
+        var releaseField = this.releaseField; 
         
-        var copy_requests = [];
-        Ext.each(featuresToUpdate, function(f){
-            if (f.newStories.length > 0){
-                Ext.each(f.newStories, function(ns){
-                    var cr = {};
-                    cr[this.storyTypeField] = this._getStoryKey(ns);  
-                    cr['FormattedID'] = f.FormattedID;
-                    cr['overrideFields'] ={};
-                    cr.overrideFields['PortfolioItem'] = f._ref;
-                    cr.overrideFields[this.releaseField] = code_deployment_val;
-                    cr.overrideFields['Name'] = f.FormattedID;
-                    cr.overrideFields['Release'] = f.Release;
-                    copy_requests.push(cr);
-                },this);
-            }
+        var copyRequests = [];
+        Ext.each(newArtifacts, function(a){
+            copyRequests.push(cr);
         },this);
         
-        this.logger.log('_createStories', copy_requests);
+        this.logger.log('_createStories', copyRequests);
         
-        if (copy_requests.length > 0){
+        if (copyRequests.length > 0){
             var dlg_stories = Ext.create('Rally.technicalservices.dialog.TemplateCopier',{
-                copyRequests: copy_requests,
-                templateArtifactKeyField: this.storyTypeField,
+                copyRequests: copyRequests,
+                templateArtifactKeyField: storyTypeField,
                 title: "Create Stories",
                 listeners: {
                     scope: this,
@@ -210,6 +309,19 @@ Ext.define('CustomApp', {
             dlg_stories.show();
         }
     },
+    
+    _buildCopyRequest: function(newArtifact,storyTypeField, releaseField){
+        var cr = {};
+        cr[storyTypeField] = this._getStoryKey(newArtifact[storyTypeField]);  
+        cr['FormattedID'] = newArtifact.feature.FormattedID;
+        cr['overrideFields'] ={};
+        cr.overrideFields['PortfolioItem'] = newArtifact.feature._ref;
+        cr.overrideFields[releaseField] = releaseValue;
+        cr.overrideFields['Name'] = newArtifact.feature.FormattedID;
+        cr.overrideFields['Release'] = newArtifact.feature.Release;
+        return cr;
+    },
+    
     _getStoryTypeFieldNameFromDisplayName: function(displayName){
         this.logger.log('_getStoryTypeFieldNameFromDisplayName',displayName);
         var fieldName = null; 
@@ -255,69 +367,6 @@ Ext.define('CustomApp', {
         });
         return this._getStoryTypeFromDisplayName(displayName); //.replace(this.dodStatusDisplayPrefix,''); 
     },
-    _updateFeatures: function(featureObjs){
-        var deferred = Ext.create('Deft.Deferred');
-        Rally.data.ModelFactory.getModel({
-            type: this.portfolioItemL1,
-            scope: this,
-            success: function(model) {
-                this.logger.log('_updateFeatures model loaded');
-                var promises = []; 
-                Ext.each(featureObjs, function(obj){
-                    if (!_.isEmpty(obj.updatedFields)){
-                        promises.push(function(){this._updateFeature(model, obj)});
-                    }
-                }, this);
-                
-                if (promises.length == 0){
-                    deferred.resolve();
-                } else {
-                    Deft.Chain.sequence(promises, this).then({
-                        scope: this,
-                        success: function(){
-                            this.logger.log('_updateFeatures promises completed');
-                            deferred.resolve();
-                        }
-                    });
-                }
-            }
-        });
-        return deferred;  
-    },
-    _updateFeature: function(model, feature){
-        var deferred = Ext.create('Deft.Deferred');
-        var fetch = _.keys(feature.updatedFields);
-        var formatted_id = feature.FormattedID;
-        this.logger.log('_updateFeature', feature);
-        model.load(feature.ObjectID, {
-            fetch: fetch,
-            scope: this,
-            callback: function(result, operation) {
-                this.logger.log('_updateFeature loaded', operation);
-                if(operation.wasSuccessful()) {
-                    this.logger.log('_updateFeature load success');
-                    Ext.Object.each(feature.updatedFields, function(field,value){
-                        this.logger.log('setting',feature.FormattedID, field,value);
-                        result.set(field,value);
-                    }, this);
-                    result.save().then({
-                        scope: this,
-                        success: function(f){
-                            Rally.ui.notify.Notifier.showUpdate({artifact: f});
-                            this.logger.log('_updateFeature save success', f);
-                            deferred.resolve();
-                        }
-                    });
-                } else {
-                    this.logger.log('_updateFeature unsuccessful');
-                    var msg = Ext.String.format("{0} update failed [Error:  {1}]",formatted_id, operation.getError());
-                    Rally.ui.notify.Notifier.showError({message: msg});
-                    deferred.resolve();
-                }
-            }
-        });
-        return deferred;  
-    },
     _getStoryTypeFromDisplayName: function(displayName){
         return displayName.replace(this.dodStatusDisplayPrefix,'',"i");
     },
@@ -325,7 +374,7 @@ Ext.define('CustomApp', {
         var deferred = Ext.create('Deft.Deferred');
         var dod_fields = [];  
         Rally.data.ModelFactory.getModel({
-            type: this.portfolioItemL1,
+            type: this.portfolioItemFeature,
             scope: this,
             success: function(model) {
                 var fields = model.getFields();
@@ -339,91 +388,23 @@ Ext.define('CustomApp', {
                 deferred.resolve(dod_fields);
             }
         });
-        
         return deferred;  
     },
-    _renderDodColumn: function(v,m,r){
-            var data;
-
-            var editableValues = ['Required','Exemption Requested'];
-
-            if (typeof v == "object") {
-                var link_text= Ext.String.format('{0}: {1}', v.FormattedID, v.Name); 
-                return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ v.ObjectID, text: link_text});
-            } else {
-                if (Ext.Array.contains(editableValues, v) || v == null ){
-                    // add a css selector to the td html class attribute we can use it after grid is ready to render the slider
-                    m.tdCls = m.tdCls + 'editable-status';
-                }
-            } 
-            return v; 
-    },
-    _getColumnCfgs: function(){
-        var noEntryText = this.noEntryText; 
-        var columns = 
-            [{text:'Feature',
-             dataIndex:'FormattedID',
-             flex: 1,
-             renderer: function(v,m,r){
-                 var link_text= Ext.String.format('{0}: {1}', v, r.get('Name')); 
-                 return Rally.nav.DetailLink.getLink({record: r.get('_ref'), text: link_text});
-             }
-          }];
-        
-        var editor_store = Ext.create('Ext.data.Store', {
-            fields: ['name'],
-            data : [
-                {"name":"Required"},
-                {"name":"Exemption Requested"},
-                {"name": "Exemption Approved"}
-                //...
-            ]
-        });
-        
-        Ext.each(this.dodFeatureFields, function(f){
-            var col = {
-                  //xtype: 'container',
-                  text: this._getStoryTypeFromDisplayName(f.displayName),  //.replace(this.dodStatusDisplayPrefix,'',"i"),
-                  dataIndex: f.name,
-                  renderer: function(v,m,r){
-                      if (typeof v == "object"){
-                          var link_text= Ext.String.format('{0}', v.FormattedID); 
-                          return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ v.ObjectID, text: link_text});
-                      }
-                      if (v && v.length > 0){
-                          return v;
-                      } 
-                      return noEntryText;
-                  },
-                  editor: {
-                      xtype: 'combobox',
-                      store: editor_store,
-                      displayField: "name",
-                      valueField: "name",
-                      allowBlank: true,
-                      emptyText: noEntryText
-                  }
-
-            };
-            columns.push(col);
-        },this);
-        return columns;
-    },
     _createGrid: function(store){
-        if (this.down('#rally-grid')){
-            this.down('#rally-grid').destroy();
+        if (this._getGrid()){
+            this._getGrid().destroy();
         } 
-        var uneditableValues = ['Exemption Approved'];
+
         var columns = this._getColumnCfgs();
+        
         this._getBodyContainer().add({
             xtype: 'rallygrid',
             itemId: 'rally-grid',
             margin: 10,
             store: store, 
-            showRowActionsColumn: false,
             scope: this,
             columnCfgs: columns,
-            selType: 'cellmodel',
+            showRowActionsColumn: true,
             listeners: {
                 beforeedit: function(editor, e){
                     if (typeof e.value == "object") {
@@ -435,37 +416,18 @@ Ext.define('CustomApp', {
             plugins: [
                 Ext.create('Ext.grid.plugin.CellEditing', {
                     clicksToEdit: 1
-                    
                 })
             ],
         });
         
     },
     _getGrid: function(){
-        return this.down('#rally-grid')
+        return this.down('#rally-grid');
     },
     _clearGrid: function(){
         if (this._getGrid()){
             this._getGrid().destroy();            
         }
-    },
-    _buildGrid: function(cb){
-        this.logger.log('_buildGrid');
-        if (cb.getValue() == null){
-            return;
-        }
-        this._clearGrid();
-        
-        this.setLoading(true);
-        
-        this._fetchFeatures(this.releaseField, cb.getValue()).then({
-            scope: this,
-            success: function(store){
-                this._createGrid(store);
-                this.setLoading(false);
-            }
-        
-        });
     },
 
     _fetchFeatures: function(releaseField, releaseValue){
@@ -533,49 +495,110 @@ Ext.define('CustomApp', {
         });
         return deferred;
     },
-    _buildCustomStore: function(features, stories){
-         var feature_hash = {};
-        Ext.each(stories, function(s){
-            var pi = s.get('PortfolioItem');
-            feature_hash[pi] = feature_hash[pi] || [];
-            feature_hash[pi].push(s.getData());
+    _findStoryForFeature: function(feature, artifactFeatureHash, storyTypeField, storyTypeValue){
+        var featureOid = feature.get('ObjectID');
+        var artifacts = artifactFeatureHash[featureOid];
+        var artifactFound = null;  
+        Ext.each(artifacts, function(artifact){
+           console.log(artifact.get(fieldType),storyTypeValue,storyTypeField);
+            if (artifact.get(fieldType) === storyTypeValue){
+               artifactFound = artifact; 
+               return false;  
+           } 
         });
+        return artifactFound;
+    },
+    _getColumnCfgs2: function(){
+        var noEntryText = this.noEntryText; 
+        var dodFields = this.dodFeatureFields;
+        var featureArtifactHash = this.featureArtifactHash;  
+        var findStory = this._findStoryForFeature;
+        var dodStatusDisplayPrefix = this.dodStatusDisplayPrefix; 
         
-       this.logger.log('_buildCustomStore feature_hash', feature_hash);
-        var data = []; 
+        var columns = 
+            [{
+                xtype: 'rallyrowactioncolumn',
+                rowActionsFn: function(record){
+                    return [{
+                        text: 'Set Required', 
+                        record: record,
+                        scope: this,
+                        handler: function(item){
+                            Ext.each(dodFields, function(f){
+                                var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i")
+                                var story = findStory(item.record, f.name, storyTypeValue, featureArtifactHash);
+                                if (story == null){
+                                    item.record.set(f.name, 'Required');                                    
+                                }
+                            }, this);
+                        }
+                    },{
+                        text: 'Set Exemption Requested', 
+                        record: record, 
+                        scope: this,
+                        handler: function(item){
+                            Ext.each(dodFields, function(f){
+                                var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i")
+                                var story = findStory(item.record, f.name, storyTypeValue, featureArtifactHash);
+                                if (story == null){
+                                    item.record.set(f.name, 'Exemption Requested');
+                                }
+                            }, this);
+                        }
+                    }];
+               } 
+            },{text:'Feature',
+             dataIndex:'FormattedID',
+             flex: 1,
+             renderer: function(v,m,r){
+                 var link_text= Ext.String.format('{0}: {1}', v, r.get('Name')); 
+                 return Rally.nav.DetailLink.getLink({record: r.get('_ref'), text: link_text});
+             },
+             exportRenderer: function(v,m,r){
+                 return Ext.String.format('{0}: {1}', v, r.get('Name')); 
+             }
+          }];
         
-        Ext.each(features, function(f){
-            var rec = {'FormattedID':f.get('FormattedID'),
-                    'Name': f.get('Name'), 
-                    '_ref': f.get('_ref'), 
-                    'ObjectID': f.get('ObjectID'),
-                    'Release': f.get('Release') || ''
+        Ext.each(this.dodFeatureFields, function(f){
+            var col = {
+                  //xtype: 'container',
+                  text: this._getStoryTypeFromDisplayName(f.displayName),  //.replace(this.dodStatusDisplayPrefix,'',"i"),
+                  dataIndex: f.name,
+                  renderer: function(v,m,r){
+                      if (v & v.length > 0){
+                          Ext.each(dodFields, function(f){
+                              var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i")
+                              var story = findStory(item.record, f.name, storyTypeValue, featureArtifactHash);
+                              if (story){
+                                var link_text= Ext.String.format('{0}', story.FormattedID); 
+                                return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ story.ObjectID, text: link_text});
+                              }
+                          });
+                              
+                      } else {
+                          return v;
+                      } 
+                      return noEntryText;
+                  },
+                  exportRenderer: function(v,m,r){
+                      if (v & v.length > 0){
+                          Ext.each(dodFields, function(f){
+                              var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i")
+                              var story = findStory(item.record, f.name, storyTypeValue, featureArtifactHash);
+                              if (story){
+                                return Ext.String.format('{0}', story.FormattedID); 
+                              }
+                          });
+                              
+                      } else {
+                          return v;
+                      } 
+                      return noEntryText;
+                      
+                  }
             };
-            Ext.each(this.dodFeatureFields, function(dod_f){
-                var dod_type = this._getStoryTypeFromDisplayName(dod_f.displayName); //.replace(this.dodStatusDisplayPrefix,'');
-                var story = null;  
-                Ext.each(feature_hash[f.get('ObjectID')], function(s){
-                    this.logger.log('_buildCustomStore associated stories',s[this.storyTypeField],dod_type,dod_f.displayName);
-                    if (s[this.storyTypeField] == dod_type){
-                        story = s;
-                        return false;
-                    }
-                }, this);
-   
-                if (story){
-                    rec[dod_f.name] = story;
-                } else  {
-                    rec[dod_f.name] = f.get(dod_f.name);
-                } 
-            },this);
-            this.logger.log('feature data',rec);
-            data.push(rec);
-        }, this);
-        this.exportData = data;  
-    
-        return Ext.create('Rally.data.custom.Store',{
-            autoSync: true,
-            data: data
-        });
-    }
+            columns.push(col);
+        },this);
+        return columns;
+    },
 });
