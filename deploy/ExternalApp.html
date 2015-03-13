@@ -3,10 +3,10 @@
 <head>
     <title>Feature Definition of Done Story Creator</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Tue Mar 10 2015 11:10:38 GMT-0700 (PDT) -->
+    <!--  Build Date: Fri Mar 13 2015 16:50:02 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Mar 10 2015 11:10:38 GMT-0700 (PDT)";
+        var APP_BUILD_DATE = "Fri Mar 13 2015 16:50:02 GMT-0700 (PDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -558,6 +558,62 @@ Ext.define('Rally.technicalservices.Logger',{
 
 });
 
+Ext.define('Rally.technicalservices.data.Template',{
+    templateArtifact: null,
+    model: null, 
+    constructor: function(config) {
+        Ext.apply(this,config);
+    },    
+    copy: function(copyRequest){
+        var deferred = Ext.create('Deft.Deferred');
+        
+        var record = Ext.create(this.model, this._getDataToCopy(copyRequest));
+        record.save({
+            callback: function(record, operation, success) {
+                if (operation.wasSuccessful()){
+                    copyRequest.artifactResult = record;
+                    deferred.resolve(copyRequest);
+                } else {
+                    copyRequest.artifactResult = operation.error.errors[0];
+                    deferred.resolve(copyRequest);
+                }
+            }
+        });
+        return deferred;  
+    },
+    
+    _getDataToCopy: function(copyRequest){
+        var new_fields = {};
+        Ext.each(copyRequest.copyFields, function(f){
+            new_fields[f] = this.templateArtifact.get(f);
+        }, this);
+        
+        if (!_.isEmpty(copyRequest.overrideFields)){
+            Ext.Object.each(copyRequest.overrideFields, function(key,value){
+                if (value){
+                    new_fields[key] = value;
+                }
+            });
+        }
+        
+        Ext.Object.each(copyRequest.transformers,function(field,fn){
+            new_fields[field] = fn(this.templateArtifact);
+        }, this);
+        return new_fields;
+    }
+});
+Ext.define('Rally.technicalservices.data.CopyRequest',{
+    keyField: 'c_DoDStoryType',
+    keyFieldValue: null, 
+    overrideFields: null,
+    referenceFields: null,
+    transformers: null,
+    identifier: null,
+    copyFields: ['c_DoDStoryType','Project','Name','Description','Release'],
+    constructor: function(config){
+        Ext.apply(this,config);
+    }
+});
 Ext.define('Rally.technicalservices.FileUtilities', {
     singleton: true,
     logger: new Rally.technicalservices.Logger(),
@@ -719,220 +775,7 @@ Ext.define('Rally.technicalservices.FileUtilities', {
     }
 
 });
-//Ext.override(Rally.ui.menu.RecordMenu,{
-//    items: [{
-//        predicate: function(record){ return true;}
-//    }]
-//});
-//
-//
-//     Ext.override(Rally.ui.grid.RowActionColumn, {
-////        requires: [
-////            'Rally.ui.menu.RecordMenu',
-////            'Rally.util.Test'
-////        ],
-////        extend: 'Ext.grid.column.Column',
-////        alias: 'widget.rallyrowactioncolumn',
-////
-//        inheritableStatics: {
-//            getRequiredFetchFields: function(grid) {
-//                return (grid.enableBulkEdit && ['Project', 'Tags']) || [];
-//            }
-//        },
-//
-//        clientMetrics: {
-//            event: 'click',
-//            description: 'clicked gear menu'
-//        },
-//
-//        /**
-//         * @property {Boolean} sortable False to disable sorting of this column
-//         *
-//         */
-//        sortable: false,
-//        /**
-//         * @property {Boolean} hideable False to disable hiding of column
-//         *
-//         */
-//        hideable: false,
-//        /**
-//         * @property {Boolean} resizable False to disable resizing of column
-//         *
-//         */
-//        resizable: false,
-//        /**
-//         * @property {Boolean} draggable False to disable reordering of a column
-//         *
-//         */
-//        draggable: false,
-//        /**
-//         * @property {Boolean} menuDisabled True to disable the column header menu containing sort/hide options
-//         *
-//         */
-//        menuDisabled: true,
-//        /**
-//         * @property {Number}
-//         *
-//         */
-//        flex: -1,
-//        minWidth: Ext.isIE9 ? 22 : 26,
-//        maxWidth: Ext.isIE9 ? 22 : 26,
-//
-//        /**
-//         * @property {Boolean}
-//         * This column should not show up on print pages that include a printable grid
-//         */
-//        printable: false,
-//
-//        tdCls: 'rally-cell-row-action',
-//        rowActionsFn: function(record){
-//            return [{
-//                text: 'Set all Required', 
-//                record: record, 
-//                handler: function(){alert('hi');}
-//            }];
-//        } ,
-//        config: {
-//            /**
-//             * @cfg {Function} rowActionsFn
-//             * @params record {Ext.data.Record} The record to be assigned to record menu items
-//             * A list of Rally.ui.menu.Menu#items objects that will be used as the row action options
-//             * Each row action can contain a predicate property which will be evaluated to see if the row action should be included
-//             * Usage:
-//             *      [
-//             *          {text: 'Move...', record: record, handler: function(){  // move this.record  }}
-//             *      ]
-//             */
-//            rowActionsFn: function(record){
-//                return [{
-//                    text: 'Set all Required', 
-//                    record: record, 
-//                    handler: function(){alert('hi');}
-//                }];
-//            } 
-//        },
-//
-//        constructor: function() {
-//            this.callParent(arguments);
-//            this.renderer = this._renderGearIcon;
-//        },
-//
-//        initComponent: function() {
-//            this.callParent(arguments);
-//            this.on('click', this._showMenu, this);
-//        },
-//
-//        onDestroy: function() {
-//            if (this.menu) {
-//                this.menu.destroy();
-//                delete this.menu;
-//            }
-//
-//            this.callParent(arguments);
-//        },
-//
-//        /**
-//         * @private
-//         * @param value
-//         * @param metaData
-//         * @param record
-//         */
-//        _renderGearIcon: function(value, metaData, record) {
-//            metaData.tdCls = Rally.util.Test.toBrowserTestCssClass('row-action', Rally.util.Ref.getOidFromRef(record.get('_ref')));
-//
-//            if (record.get("updatable") || record.get("deletable") || record.get("creatable")) {
-//                return '<div class="row-action-icon icon-gear"/>';
-//            }
-//
-//            return '';
-//        },
-//
-//        /**
-//         * @private
-//         * @param view
-//         * @param el
-//         */
-//        _showMenu: function(view, el) {
-//            var selectedRecord = view.getRecord(Ext.fly(el).parent("tr")),
-//                checkedRecords = view.getSelectionModel().getSelection(),
-//                grid = view.panel,
-//                defaultOptions;
-//
-//            defaultOptions = {
-//                cls: Rally.util.Test.toBrowserTestCssClass('row-gear-menu-' + selectedRecord.getId()) + ' row-gear-menu',
-//                record: selectedRecord,
-//                owningEl: el.parentElement,
-//                popoverPlacement: ['bottom', 'top'],
-//                rankRecordHelper: {
-//                    findRecordToRankAgainst: function(options) {
-//                        grid.findRankedRecord(options);
-//                    },
-//                    getMoveToPositionStore: function(options) {
-//                        return grid.getMoveToPositionStore(options);
-//                    }
-//                },
-//                onBeforeRecordMenuCopy: function(record) {
-//                    return grid.onBeforeRecordMenuCopy(record);
-//                },
-//                onRecordMenuCopy: function(copiedRecord, originalRecord, operation) {
-//                    return grid.onRecordMenuCopy(copiedRecord, originalRecord, operation);
-//                },
-//                onBeforeRecordMenuEdit: function(record) {
-//                    return grid.onBeforeRecordMenuEdit(record);
-//                },
-//                onBeforeRecordMenuDelete: function(record) {
-//                    return grid.onBeforeRecordMenuDelete(record);
-//                },
-//                onRecordMenuDelete: function(record) {
-//                    return grid.onRecordMenuDelete(record);
-//                },
-//                onBeforeRecordMenuRankHighest: function(record) {
-//                    return grid.onBeforeRecordMenuRankHighest(record);
-//                },
-//                onBeforeRecordMenuRankLowest: function(record) {
-//                    return grid.onBeforeRecordMenuRankLowest(record);
-//                },
-//                shouldRecordBeRankable: function(record) {
-//                    return grid.shouldRecordBeRankable(record);
-//                }
-//            };
-//            console.log('rowActionsFn',this.rowActionsFn);
-//            if (grid.enableBulkEdit && _.contains(checkedRecords, selectedRecord)) {
-//                this.menu = Ext.create('Rally.ui.menu.bulk.RecordMenu', {
-//                    context: grid.getContext(),
-//                    records: checkedRecords,
-//                    onBeforeAction: function() {
-//                        if (view.loadMask && _.isFunction(view.loadMask.disable)) {
-//                            view.loadMask.disable();
-//                        }
-//                        grid.setLoading('Updating...');
-//                    },
-//                    onActionComplete: function(successfulRecords, unsuccessfulRecords, changes) {
-//                        grid.refreshAfterBulkAction(successfulRecords, changes).then({
-//                            success: function() {
-//                                grid.setLoading(false);
-//                                if (view.loadMask && _.isFunction(view.loadMask.enable)) {
-//                                    view.loadMask.enable();
-//                                }
-//                                grid.getSelectionModel().deselect(successfulRecords);
-//                                grid.getSelectionModel().select(unsuccessfulRecords);
-//                                _.each(successfulRecords, grid.highlightRowForRecord, grid);
-//                                grid.publish(Rally.Message.bulkUpdate, successfulRecords, changes, grid);
-//                            }
-//                        });
-//                    }
-//                });
-//            } else if (this.rowActionsFn) {
-//                this.menu = Ext.create('Rally.ui.menu.RecordMenu', Ext.apply({
-//                    items: this.rowActionsFn.call(this.scope || this, selectedRecord)
-//                }, defaultOptions));
-//            } else {
-//                this.menu = Ext.create('Rally.ui.menu.DefaultRecordMenu', defaultOptions);
-//            }
-//
-//            this.menu.showBy(Ext.fly(el).down(".row-action-icon"));
-//        }
-//    });
+
 Ext.override(Ext.layout.container.Editor, {
     calculate: function(ownerContext) {
         console.log(ownerContext);
@@ -966,7 +809,6 @@ Ext.override(Ext.layout.container.Editor, {
     }
 });
 
-
 Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
     extend: 'Rally.ui.dialog.Dialog',
     logger: new Rally.technicalservices.Logger(),
@@ -976,39 +818,27 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
     modal: true,
     config: {
         title: 'Create Stories',
-        /**
-         * createRequests - an array of objects that contain the following keys:
-         *      - Parent (Feature) FormattedID 
-         *      - Parent (Feature) ObjectID
-         *      - Story Type
-         *      - Overridden fields (Code Deployment Type, Release, Modified Name) 
-         */
         copyRequests: null,
-// Update Name
-// Set codeDeployment
-// Set release to feature's release,
-// Update PortfolioItem (parent)
-
-        templateArtifactHash: null,  //{}
         templateArtifactKeyField: 'c_StoryType',
         templateModel: 'HierarchicalRequirement',
-        templateCopyFields: ['c_DoDStoryType','Project','Name','Description','Release'],
-        templateFilters: [{
+        templateFilters:[{
             property: 'PortfolioItem',
             value: 'portfolioitem/feature/24797386560'
-        }],
+        }] 
     },
 
     constructor: function(config) {
         Ext.apply(this,config);
         this.callParent(arguments);
     },
+    
     initComponent: function() {
         this.callParent(arguments);
         this.addEvents('artifactscreated');
         this._buildPreview();  
         this._buildButtons();
     },    
+    
     _buildPreview: function(){
         this.logger.log('_buildPreview', this.copyRequests);
         var ct = this.add({
@@ -1016,137 +846,89 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
             layout: {
                 align: 'center'
             },
-            tpl: '<b>Stories to Create:</b><br/><br/><tpl for=".">{c_DoDStoryType} for {FormattedID}<br/></tpl>'
+            tpl: '<b>Stories to Create:</b><br/><br/><tpl for=".">{identifier}<br/></tpl>'
         });
         ct.update(this.copyRequests);
     },
 
     _create: function(){
-        this.logger.log('_create');
-        
-        this._fetchTemplates(this.templateModel, this.templateCopyFields, this.templateFilters).then({
+         this._loadTemplatesIntoHash(this.copyRequests, this.templateArtifactKeyField).then({
             scope: this,
-            success: function(totalTemplates){
-                this._copyTemplates(totalTemplates).then({
+            success: this._doCopy
+        });
+    },
+    
+    _doCopy: function(templateHash){
+        var promises = [];  
+        Ext.each(this.copyRequests, function(req){
+            var copier = templateHash[req.keyFieldValue];
+            promises.push(function(){
+                var deferred = Ext.create('Deft.Deferred');
+                copier.copy(req).then({
                     scope: this,
-                    success: function(requests){
-                        this.fireEvent('artifactscreated',requests);
-                        this.destroy();
+                    success: function(req){
+                        deferred.resolve(req);
+                    }
+                });
+                return deferred;
+            });
+        });
+        
+        Deft.Chain.sequence(promises).then({
+            scope: this,
+            success: function(requests){
+                this.fireEvent('artifactscreated',requests);
+                this.destroy();
+            }
+        });
+    },
+    
+    _getTemplateFetch: function(copyRequests){
+        var fetch =[];
+        Ext.each(copyRequests, function(req){
+            fetch = Ext.Array.merge(fetch,req.copyFields);
+        });
+        return fetch; 
+    },
+    
+    _getTemplateFilters: function(copyRequests){
+        var filters= this.templateFilters;
+        return filters; 
+    },
+    
+    _loadTemplatesIntoHash: function(copyRequests, hashKeyField){
+        var deferred = Ext.create('Deft.Deferred');
+        var fetch = this._getTemplateFetch(copyRequests);
+        var filters = this._getTemplateFilters(copyRequests);
+        this._fetchTemplates(this.templateModel, fetch, filters).then({
+            scope: this,
+            success: function(records){
+                Rally.data.ModelFactory.getModel({
+                    type: this.templateModel,
+                    scope: this, 
+                    success: function(model) {
+                        templateHash = this._buildTemplateHash(records, model, hashKeyField);
+                        this.logger.log('_loadTemplatesIntoHash (fetch,filters,hashKeyField,copyRequests,templateHash)',fetch, filters, hashKeyField,copyRequests,templateHash);
+                        deferred.resolve(templateHash);
+                        
                     }
                 });
             }
-        });
+      });
+      return deferred; 
     },
-    _copyTemplates: function(totalTemplates){
-        var deferred = Ext.create('Deft.Deferred');
-        
-        this.logger.log('_copyTemplates', totalTemplates, this.copyRequests, this.templateArtifactHash);
-        if (totalTemplates == 0){
-            //Alert the user that they might need permissions to the main project.
-            deferred.resolve();
-            return;
-        }
-        
-        var model = this._createModel(this.templateModel).then({
-            scope: this,
-            success: function(model){
-                this.logger.log('modelCreated')
-                this.model = model;  
-                var promises = []; 
-                
-                Ext.each(this.copyRequests, function(cr){
-                    var story_type = cr[this.templateArtifactKeyField];
-
-                    var artifact_to_copy = this.templateArtifactHash[story_type];
-
-                    this.logger.log('_copyTemplates', story_type, artifact_to_copy, this.templateArtifactHash, this.templateArtifactHash[story_type],'x');
-                    if (artifact_to_copy){
-                        var fields = this._getNewArtifactFields(artifact_to_copy, cr.overrideFields);
-                        this.logger.log('_copyTemplates', fields, artifact_to_copy);
-                        var fn = function(){
-                            var deferred = Ext.create('Deft.Deferred');
-                            this._createArtifact(this.model,fields,cr).then({
-                                scope: this,
-                                success: function(copyRequest){
-                                    deferred.resolve(copyRequest);
-                                }
-                            });
-                            return deferred;  
-                        }
-                        promises.push(fn);
-                    } else {
-                        //todo alert user that there is a problem
-                    }
-                },this);
-                
-                this.logger.log('promises', promises.length);
-                if (promises.length > 0){
-                    Deft.Chain.sequence(promises, this).then({
-                        scope: this,
-                        success: function(requests){
-                            this.logger.log('_copyTemplates createArtifacts Success', requests);
-                            deferred.resolve(requests);
-                        },
-                        failure: function(){
-                            this.logger.log('_copyTemplates, createArtifact failure');
-                        }
-                    });
-                }
-            }
-        });  
-        return deferred; 
+    
+    _buildTemplateHash: function(records, model, hashKeyField){
+        var hash = {};
+        Ext.each(records, function(r){
+            hash[r.get(hashKeyField)] = Ext.create('Rally.technicalservices.data.Template',{
+                templateArtifact: r,
+                model: model
+            });
+        });
+        return hash; 
     },
 
-    _getNewArtifactFields: function(artifactToCopy, overrideFields) {
-        this.logger.log('_getNewArtifactFields', artifactToCopy, overrideFields);
-            
-        var new_fields = {};
-        Ext.each(this.templateCopyFields, function(f){
-            new_fields[f] = artifactToCopy.get(f);
-        });
-        
-        if (overrideFields){
-            Ext.Object.each(overrideFields, function(key,value){
-                if (value){
-                    new_fields[key] = value;                      
-                }
-            });            
-        }
-        
-        new_fields['Name'] = artifactToCopy.get('Name').replace('US Template',new_fields['Name']);
-        return new_fields;  
-      },
-      
-     _createModel: function(modelType){
-         var deferred = Ext.create('Deft.Deferred');
-         Rally.data.ModelFactory.getModel({
-             type: modelType,
-             success: function(model) {
-                deferred.resolve(model);
-             }
-         });
-         return deferred; 
-     },
-     _createArtifact: function(model, fields, copyRequest) {
-         var deferred = Ext.create('Deft.Deferred');
-         this.logger.log('_createArtifact start');
-         var record = Ext.create(model, fields);
-         record.save().then({
-             scope: this,
-             success: function(result){
-                 this.logger.log('_createArtifact successful', result);
-                 Rally.ui.notify.Notifier.showCreate({artifact: result});                
-                 copyRequest.resultArtifact = result;
-                 deferred.resolve(copyRequest);
-             },
-             failure: function(operation){
-                 this.logger.log('_createArtifact failed');
-                 copyRequest.resultArtifact = operation.error.errors[0];
-                 deferred.resolve(copyRequest);
-             }
-         });
-         return deferred.promise;
-     },
      _fetchTemplates: function(model, fetch, filters){
          var deferred = Ext.create('Deft.Deferred');
          this.logger.log('_fetchTemplates',model,fetch,filters);
@@ -1160,13 +942,7 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
              listeners: {
                  scope: this,
                  load: function(store, records, success){
-                     this.logger.log('_fetchTemplates load success', records.length, records);
-                     this.templateArtifactHash = {};
-                     Ext.each(records, function(r){
-                         var key = r.get(this.templateArtifactKeyField);
-                         this.templateArtifactHash[key] = r;
-                     }, this);
-                     deferred.resolve(records.length);
+                     deferred.resolve(records);
                  }
              }
          });
@@ -1550,6 +1326,20 @@ Ext.define('CustomApp', {
         cr.overrideFields[releaseField] = releaseValue;
         cr.overrideFields['Name'] = newArtifact.feature.FormattedID;
         //cr.overrideFields['Release'] = newArtifact.feature.Release;
+        
+        var overrideFields = {"PortfolioItem": newArtifact.feature._ref};
+        overrideFields[releaseField] = releaseValue;
+        var identifier = this._getStoryKey(newArtifact[storyTypeField]) + ' for ' + newArtifact.feature.FormattedID;
+        var cr = Ext.create('Rally.technicalservices.data.CopyRequest',{
+            keyFieldValue: this._getStoryKey(newArtifact[storyTypeField]),
+            overrideFields: overrideFields,
+            identifier: identifier,
+            transformers: {
+                "Name": function(artifact){
+                    return artifact.get('Name').replace("US Template",newArtifact.feature.FormattedID);
+                }
+            }
+        });
         return cr;
     },
     
@@ -1567,15 +1357,16 @@ Ext.define('CustomApp', {
     _updateGrid: function(requests){
       this.logger.log('_updateGrid', requests);
       Ext.each(requests, function(r){
-          if (typeof r.resultArtifact == 'object'){
+          if (typeof r.artifactResult == 'object'){
               var featureOid = r.ObjectID;  
               this.featureArtifactHash[featureOid] = this.featureArtifactHash[featureOid] || []; 
-              this.featureArtifactHash[featureOid].push(r.resultArtifact);
+              this.featureArtifactHash[featureOid].push(r.artifactResult);
+              Rally.ui.notify.Notifier.showCreate({artifact: r.artifactResult});
           } else {
-              var msg = Ext.String.format('Unable to create {0} artifact for {1}',r[this.storyTypeField],r.FormattedID);
+              var msg = Ext.String.format('Unable to create artifact: {0}',r.identifier);
               Rally.ui.notify.Notifier.showError({message: msg});
           }
-  }, this);
+      }, this);
 
         this._getGrid().refresh(); 
     },
