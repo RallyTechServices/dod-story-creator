@@ -6,24 +6,17 @@ Ext.define('Rally.technicalservices.data.Template',{
     constructor: function(config) {
         Ext.apply(this,config);
     },
-    _loadTasks: function(){
+    _loadTasks: function(templateTasks){
         var deferred = Ext.create('Deft.Deferred');
 
-        if (this.templateTasks){
-            deferred.resolve();
-        }
-
-        if (this.templateArtifact.get('Tasks').Count == 0){
-            this.templateTasks = [];
+        if (templateTasks){
             deferred.resolve();
         }
 
         this.templateArtifact.getCollection('Tasks').load({
             scope: this,
             callback: function(tasks,operation,success){
-                console.log('tasks',tasks);
-                this.templateTasks = tasks;
-                deferred.resolve();
+                deferred.resolve(tasks);
             }
         });
         return deferred;
@@ -39,33 +32,29 @@ Ext.define('Rally.technicalservices.data.Template',{
         });
         return deferred;
     },
+    _hasTasks: function(){
+        return(this.templateArtifact.get('Tasks').Count > 0);
+    },
     copy: function(copyRequest){
         var deferred = Ext.create('Deft.Deferred');
-    console.log('copy',copyRequest)
         if (this.templateArtifact){
-            this._loadTasks().then({
+            this._copyArtifact(this.model, this._getDataToCopy(copyRequest)).then({
                 scope: this,
-                success: function(){
-                    this._copyArtifact(this.model, this._getDataToCopy(copyRequest)).then({
-                        scope: this,
-                        success: function(result){
-                            console.log('copyArtifact',result);
-                            if (typeof result == 'object'){
-                                copyRequest.artifactResult = result;
-                                var fieldsToCopy = copyRequest.copyCollections['Tasks'];
-                                this._copyTasks(result, fieldsToCopy).then({
-                                    scope: this,
-                                    success: function(results){
-                                        console.log('copyTasks',results);
-                                        deferred.resolve(copyRequest);
-                                    }
-                                });
-                            } else {
-                                copyRequest.artifactResult = result;
-                                deferred.resolve(copyRequest);
-                            }
+                success: function(result){
+                    copyRequest.artifactResult = result;
+                    if (typeof result == 'object' && this._hasTasks()){
+                         if (this._hasTasks()){
+                            var fieldsToCopy = copyRequest.copyCollections['Tasks'];
+                            this._copyTasks(result, fieldsToCopy).then({
+                                scope: this,
+                                success: function(results){
+                                    deferred.resolve(copyRequest);
+                                }
+                            });
                         }
-                    });
+                    } else {
+                        deferred.resolve(copyRequest);
+                    }
                 }
             });
         }
@@ -74,10 +63,26 @@ Ext.define('Rally.technicalservices.data.Template',{
     _copyTasks: function(newParent, fieldsToCopy){
         var deferred = Ext.create('Deft.Deferred');
         
-        if (this.templateTasks.length == 0){
-            deferred.resolve();  
-        }
-        this._loadModel('Task').then({
+        if (this.templateTasks == null){
+            this._loadTasks(this.templateTasks).then({
+                scope: this,
+                success: function(templateTasks){
+                    this.templateTasks = templateTasks;
+                    this._loadModel('Task').then({
+                        scope: this,
+                        success: function(taskModel){
+                            this._copyTemplateTasks(taskModel, newParent, fieldsToCopy).then({
+                                scope: this,
+                                success: function(results){
+                                    deferred.resolve(results);
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        } else {
+            this._loadModel('Task').then({
                 scope: this,
                 success: function(taskModel){
                     this._copyTemplateTasks(taskModel, newParent, fieldsToCopy).then({
@@ -86,9 +91,10 @@ Ext.define('Rally.technicalservices.data.Template',{
                             deferred.resolve(results);
                         }
                     });
-                 }
-        });
-        return deferred;
+                }
+            });
+        }
+         return deferred;
     },
     _copyTemplateTasks: function(taskModel, parent,fieldsToCopy){
         var deferred = Ext.create('Deft.Deferred');
@@ -99,13 +105,11 @@ Ext.define('Rally.technicalservices.data.Template',{
                 fields[f] = task.get(f);
             });
             fields['WorkProduct'] = parent.get('_ref');
-            console.log('copyfields',fields);
             var fn = this._copyArtifact;
             promises.push(function(){
                 var deferred = Ext.create('Deft.Deferred');
                 fn(taskModel,fields).then({
                     success: function(result){
-                        console.log('returned from copyArtfiact');
                         deferred.resolve(result);
                     }
                 });
@@ -128,7 +132,6 @@ Ext.define('Rally.technicalservices.data.Template',{
         var record = Ext.create(model, fields);
         record.save({
             callback: function(record, operation, success) {
-                console.log('copyartfiact callback', fields, operation, success);
                 if (operation.wasSuccessful()){
                     deferred.resolve(record);
                 } else {
