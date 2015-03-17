@@ -346,6 +346,21 @@ Ext.define('CustomApp', {
         cr.overrideFields[releaseField] = releaseValue;
         cr.overrideFields['Name'] = newArtifact.feature.FormattedID;
         //cr.overrideFields['Release'] = newArtifact.feature.Release;
+        var featureOid = newArtifact.feature.ObjectID;
+        var overrideFields = {"PortfolioItem": newArtifact.feature._ref};
+        overrideFields[releaseField] = releaseValue;
+        var identifier = this._getStoryKey(newArtifact[storyTypeField]) + ' for ' + newArtifact.feature.FormattedID;
+        var cr = Ext.create('Rally.technicalservices.data.CopyRequest',{
+            keyFieldValue: this._getStoryKey(newArtifact[storyTypeField]),
+            overrideFields: overrideFields,
+            parentOid: featureOid,
+            identifier: identifier,
+            transformers: {
+                "Name": function(artifact){
+                    return artifact.get('Name').replace("US Template",newArtifact.feature.FormattedID);
+                }
+            }
+        });
         return cr;
     },
     
@@ -363,16 +378,16 @@ Ext.define('CustomApp', {
     _updateGrid: function(requests){
       this.logger.log('_updateGrid', requests);
       Ext.each(requests, function(r){
-          if (typeof r.resultArtifact == 'object'){
-              var featureOid = r.ObjectID;  
+          if (typeof r.artifactResult == 'object'){
+              var featureOid = r.parentOid;
               this.featureArtifactHash[featureOid] = this.featureArtifactHash[featureOid] || []; 
-              this.featureArtifactHash[featureOid].push(r.resultArtifact);
+              this.featureArtifactHash[featureOid].push(r.artifactResult);
+              Rally.ui.notify.Notifier.showCreate({artifact: r.artifactResult});
           } else {
-              var msg = Ext.String.format('Unable to create {0} artifact for {1}',r[this.storyTypeField],r.FormattedID);
+              var msg = Ext.String.format('Unable to create artifact: {0}',r.identifier);
               Rally.ui.notify.Notifier.showError({message: msg});
           }
-  }, this);
-
+      }, this);
         this._getGrid().refresh(); 
     },
     _getStoryKey: function(fieldName){

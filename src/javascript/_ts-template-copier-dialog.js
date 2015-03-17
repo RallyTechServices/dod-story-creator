@@ -1,4 +1,3 @@
-
 Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
     extend: 'Rally.ui.dialog.Dialog',
     logger: new Rally.technicalservices.Logger(),
@@ -8,39 +7,27 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
     modal: true,
     config: {
         title: 'Create Stories',
-        /**
-         * createRequests - an array of objects that contain the following keys:
-         *      - Parent (Feature) FormattedID 
-         *      - Parent (Feature) ObjectID
-         *      - Story Type
-         *      - Overridden fields (Code Deployment Type, Release, Modified Name) 
-         */
         copyRequests: null,
-// Update Name
-// Set codeDeployment
-// Set release to feature's release,
-// Update PortfolioItem (parent)
-
-        templateArtifactHash: null,  //{}
         templateArtifactKeyField: 'c_StoryType',
         templateModel: 'HierarchicalRequirement',
-        templateCopyFields: ['c_DoDStoryType','Project','Name','Description','Release'],
-        templateFilters: [{
+        templateFilters:[{
             property: 'PortfolioItem',
             value: 'portfolioitem/feature/24797386560'
-        }],
+        }] 
     },
 
     constructor: function(config) {
         Ext.apply(this,config);
         this.callParent(arguments);
     },
+    
     initComponent: function() {
         this.callParent(arguments);
         this.addEvents('artifactscreated');
         this._buildPreview();  
         this._buildButtons();
     },    
+    
     _buildPreview: function(){
         this.logger.log('_buildPreview', this.copyRequests);
         var ct = this.add({
@@ -48,137 +35,90 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
             layout: {
                 align: 'center'
             },
-            tpl: '<b>Stories to Create:</b><br/><br/><tpl for=".">{c_DoDStoryType} for {FormattedID}<br/></tpl>'
+            tpl: '<b>Stories to Create:</b><br/><br/><tpl for=".">{identifier}<br/></tpl>'
         });
         ct.update(this.copyRequests);
     },
 
     _create: function(){
-        this.logger.log('_create');
-        
-        this._fetchTemplates(this.templateModel, this.templateCopyFields, this.templateFilters).then({
+         this._loadTemplatesIntoHash(this.copyRequests, this.templateArtifactKeyField).then({
             scope: this,
-            success: function(totalTemplates){
-                this._copyTemplates(totalTemplates).then({
+            success: this._doCopy
+        });
+    },
+    
+    _doCopy: function(templateHash){
+        var promises = [];  
+        Ext.each(this.copyRequests, function(req){
+            var copier = templateHash[req.keyFieldValue];
+            promises.push(function(){
+                var deferred = Ext.create('Deft.Deferred');
+                copier.copy(req).then({
                     scope: this,
-                    success: function(requests){
-                        this.fireEvent('artifactscreated',requests);
-                        this.destroy();
+                    success: function(req){
+                        deferred.resolve(req);
+                    }
+                });
+                return deferred;
+            });
+        });
+        
+        Deft.Chain.sequence(promises).then({
+            scope: this,
+            success: function(requests){
+                this.fireEvent('artifactscreated',requests);
+                this.destroy();
+            }
+        });
+    },
+    
+    _getTemplateFetch: function(copyRequests){
+        var fetch =[];
+        Ext.each(copyRequests, function(req){
+            fetch = Ext.Array.merge(fetch,req.copyFields);
+            fetch = Ext.Array.merge(fetch,_.keys(req.copyCollections));
+        });
+        return fetch; 
+    },
+    
+    _getTemplateFilters: function(copyRequests){
+        var filters= this.templateFilters;
+        return filters; 
+    },
+    
+    _loadTemplatesIntoHash: function(copyRequests, hashKeyField){
+        var deferred = Ext.create('Deft.Deferred');
+        var fetch = this._getTemplateFetch(copyRequests);
+        var filters = this._getTemplateFilters(copyRequests);
+        this._fetchTemplates(this.templateModel, fetch, filters).then({
+            scope: this,
+            success: function(records){
+                Rally.data.ModelFactory.getModel({
+                    type: this.templateModel,
+                    scope: this, 
+                    success: function(model) {
+                        templateHash = this._buildTemplateHash(records, model, hashKeyField);
+                        this.logger.log('_loadTemplatesIntoHash (fetch,filters,hashKeyField,copyRequests,templateHash)',fetch, filters, hashKeyField,copyRequests,templateHash);
+                        deferred.resolve(templateHash);
+                        
                     }
                 });
             }
-        });
+      });
+      return deferred; 
     },
-    _copyTemplates: function(totalTemplates){
-        var deferred = Ext.create('Deft.Deferred');
-        
-        this.logger.log('_copyTemplates', totalTemplates, this.copyRequests, this.templateArtifactHash);
-        if (totalTemplates == 0){
-            //Alert the user that they might need permissions to the main project.
-            deferred.resolve();
-            return;
-        }
-        
-        var model = this._createModel(this.templateModel).then({
-            scope: this,
-            success: function(model){
-                this.logger.log('modelCreated')
-                this.model = model;  
-                var promises = []; 
-                
-                Ext.each(this.copyRequests, function(cr){
-                    var story_type = cr[this.templateArtifactKeyField];
-
-                    var artifact_to_copy = this.templateArtifactHash[story_type];
-
-                    this.logger.log('_copyTemplates', story_type, artifact_to_copy, this.templateArtifactHash, this.templateArtifactHash[story_type],'x');
-                    if (artifact_to_copy){
-                        var fields = this._getNewArtifactFields(artifact_to_copy, cr.overrideFields);
-                        this.logger.log('_copyTemplates', fields, artifact_to_copy);
-                        var fn = function(){
-                            var deferred = Ext.create('Deft.Deferred');
-                            this._createArtifact(this.model,fields,cr).then({
-                                scope: this,
-                                success: function(copyRequest){
-                                    deferred.resolve(copyRequest);
-                                }
-                            });
-                            return deferred;  
-                        }
-                        promises.push(fn);
-                    } else {
-                        //todo alert user that there is a problem
-                    }
-                },this);
-                
-                this.logger.log('promises', promises.length);
-                if (promises.length > 0){
-                    Deft.Chain.sequence(promises, this).then({
-                        scope: this,
-                        success: function(requests){
-                            this.logger.log('_copyTemplates createArtifacts Success', requests);
-                            deferred.resolve(requests);
-                        },
-                        failure: function(){
-                            this.logger.log('_copyTemplates, createArtifact failure');
-                        }
-                    });
-                }
-            }
-        });  
-        return deferred; 
+    
+    _buildTemplateHash: function(records, model, hashKeyField){
+        var hash = {};
+        Ext.each(records, function(r){
+            hash[r.get(hashKeyField)] = Ext.create('Rally.technicalservices.data.Template',{
+                templateArtifact: r,
+                model: model
+            });
+        });
+        return hash; 
     },
 
-    _getNewArtifactFields: function(artifactToCopy, overrideFields) {
-        this.logger.log('_getNewArtifactFields', artifactToCopy, overrideFields);
-            
-        var new_fields = {};
-        Ext.each(this.templateCopyFields, function(f){
-            new_fields[f] = artifactToCopy.get(f);
-        });
-        
-        if (overrideFields){
-            Ext.Object.each(overrideFields, function(key,value){
-                if (value){
-                    new_fields[key] = value;                      
-                }
-            });            
-        }
-        
-        new_fields['Name'] = artifactToCopy.get('Name').replace('US Template',new_fields['Name']);
-        return new_fields;  
-      },
-      
-     _createModel: function(modelType){
-         var deferred = Ext.create('Deft.Deferred');
-         Rally.data.ModelFactory.getModel({
-             type: modelType,
-             success: function(model) {
-                deferred.resolve(model);
-             }
-         });
-         return deferred; 
-     },
-     _createArtifact: function(model, fields, copyRequest) {
-         var deferred = Ext.create('Deft.Deferred');
-         this.logger.log('_createArtifact start');
-         var record = Ext.create(model, fields);
-         record.save().then({
-             scope: this,
-             success: function(result){
-                 this.logger.log('_createArtifact successful', result);
-                 Rally.ui.notify.Notifier.showCreate({artifact: result});                
-                 copyRequest.resultArtifact = result;
-                 deferred.resolve(copyRequest);
-             },
-             failure: function(operation){
-                 this.logger.log('_createArtifact failed');
-                 copyRequest.resultArtifact = operation.error.errors[0];
-                 deferred.resolve(copyRequest);
-             }
-         });
-         return deferred.promise;
-     },
      _fetchTemplates: function(model, fetch, filters){
          var deferred = Ext.create('Deft.Deferred');
          this.logger.log('_fetchTemplates',model,fetch,filters);
@@ -192,13 +132,7 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
              listeners: {
                  scope: this,
                  load: function(store, records, success){
-                     this.logger.log('_fetchTemplates load success', records.length, records);
-                     this.templateArtifactHash = {};
-                     Ext.each(records, function(r){
-                         var key = r.get(this.templateArtifactKeyField);
-                         this.templateArtifactHash[key] = r;
-                     }, this);
-                     deferred.resolve(records.length);
+                     deferred.resolve(records);
                  }
              }
          });
