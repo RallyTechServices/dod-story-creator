@@ -346,13 +346,14 @@ Ext.define('CustomApp', {
         cr.overrideFields[releaseField] = releaseValue;
         cr.overrideFields['Name'] = newArtifact.feature.FormattedID;
         //cr.overrideFields['Release'] = newArtifact.feature.Release;
-        
+        var featureOid = newArtifact.feature.ObjectID;
         var overrideFields = {"PortfolioItem": newArtifact.feature._ref};
         overrideFields[releaseField] = releaseValue;
         var identifier = this._getStoryKey(newArtifact[storyTypeField]) + ' for ' + newArtifact.feature.FormattedID;
         var cr = Ext.create('Rally.technicalservices.data.CopyRequest',{
             keyFieldValue: this._getStoryKey(newArtifact[storyTypeField]),
             overrideFields: overrideFields,
+            parentOid: featureOid,
             identifier: identifier,
             transformers: {
                 "Name": function(artifact){
@@ -378,7 +379,7 @@ Ext.define('CustomApp', {
       this.logger.log('_updateGrid', requests);
       Ext.each(requests, function(r){
           if (typeof r.artifactResult == 'object'){
-              var featureOid = r.ObjectID;  
+              var featureOid = r.parentOid;
               this.featureArtifactHash[featureOid] = this.featureArtifactHash[featureOid] || []; 
               this.featureArtifactHash[featureOid].push(r.artifactResult);
               Rally.ui.notify.Notifier.showCreate({artifact: r.artifactResult});
@@ -387,7 +388,6 @@ Ext.define('CustomApp', {
               Rally.ui.notify.Notifier.showError({message: msg});
           }
       }, this);
-
         this._getGrid().refresh(); 
     },
     _getStoryKey: function(fieldName){

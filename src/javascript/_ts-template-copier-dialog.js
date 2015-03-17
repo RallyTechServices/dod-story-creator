@@ -76,6 +76,7 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
         var fetch =[];
         Ext.each(copyRequests, function(req){
             fetch = Ext.Array.merge(fetch,req.copyFields);
+            fetch = Ext.Array.merge(fetch,_.keys(req.copyCollections));
         });
         return fetch; 
     },
