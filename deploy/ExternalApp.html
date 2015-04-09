@@ -3,10 +3,10 @@
 <head>
     <title>Feature Definition of Done Story Creator</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Tue Mar 17 2015 11:24:13 GMT-0700 (PDT) -->
+    <!--  Build Date: Thu Apr 09 2015 11:50:39 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Mar 17 2015 11:24:13 GMT-0700 (PDT)";
+        var APP_BUILD_DATE = "Thu Apr 09 2015 11:50:39 GMT-0700 (PDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -1166,7 +1166,8 @@ Ext.define('CustomApp', {
                 filters: [{
                     property: this.releaseField,
                     value: releaseValue
-                }]
+                }],
+                pageSize: 200
             },
           listeners: {
               beforeedit: function(editor, e){
@@ -1346,9 +1347,11 @@ Ext.define('CustomApp', {
         var artifactFeatureHash = this.featureArtifactHash;
         
         var newArtifacts = [];
-        for (var i=0; i<store.totalCount; i++){
-            
+        var totalCount = store.totalCount;
+
+        for (var i=0; i<store.getCount(); i++){
             var r = store.getAt(i);
+
             if (!_.isEmpty(r.getChanges())){
                 promises.push(r.save());
             }
