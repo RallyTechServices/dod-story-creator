@@ -64,7 +64,8 @@ Ext.define('CustomApp', {
                 filters: [{
                     property: this.releaseField,
                     value: releaseValue
-                }]
+                }],
+                pageSize: 200
             },
           listeners: {
               beforeedit: function(editor, e){
@@ -244,9 +245,11 @@ Ext.define('CustomApp', {
         var artifactFeatureHash = this.featureArtifactHash;
         
         var newArtifacts = [];
-        for (var i=0; i<store.totalCount; i++){
-            
+        var totalCount = store.totalCount;
+
+        for (var i=0; i<store.getCount(); i++){
             var r = store.getAt(i);
+
             if (!_.isEmpty(r.getChanges())){
                 promises.push(r.save());
             }
