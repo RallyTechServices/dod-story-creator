@@ -20,7 +20,8 @@ Ext.define('CustomApp', {
         portfolioItemFeature: 'PortfolioItem/Feature',
         dodStatusPrefix: 'c_DoDStatus',
         dodStatusDisplayPrefix: 'DoD Status: ',
-        requiredValue: 'Required'
+        requiredValue: 'Required',
+        allReleasesText: 'All Releases'
     },
     exportFieldMapping: {
         'FormattedID': 'FormattedID',
@@ -373,13 +374,16 @@ Ext.define('CustomApp', {
     },
     _getReleaseFilters: function(){
         var filters = [],
-            release = this._getReleaseRecord();
+            release = this._getReleaseRecord(),
+            releaseValue = release ? release.get('_ref') : '';
 
         if (release){
-            filters = filters.concat([{   //NOTE:  Customer has requested that the release only be filtered by Name only, NOT Name & ReleaseStartDate & ReleaseDate
-                property: 'Release.Name',
-                value: release.get('Name')
-            }]);
+            if (releaseValue.length > 0){  //releaseValue == '' for All releases
+                filters = filters.concat([{   //NOTE:  Customer has requested that the release only be filtered by Name only, NOT Name & ReleaseStartDate & ReleaseDate
+                    property: 'Release.Name',
+                    value: release.get('Name')
+                }]);
+            }
         } else {
             filters.push({
                 property: 'Release',
@@ -387,6 +391,7 @@ Ext.define('CustomApp', {
             });
         }
         return filters;
+
     },
     _fetchDoDFields: function(){
         var deferred = Ext.create('Deft.Deferred');
@@ -648,6 +653,12 @@ Ext.define('CustomApp', {
                 scope: this,
                 change: this._refreshDisplay
 
+            },
+            storeConfig: {
+                listeners: {
+                    scope: this,
+                    load: this._addAllOption
+                }
             }
         });
 
@@ -712,5 +723,8 @@ Ext.define('CustomApp', {
             scope: this,
             handler: this._update
         });
-    }
+    },
+    _addAllOption: function(store){
+        store.add({Name: this.allReleasesText, formattedName: this.allReleasesText});
+    },
 });
