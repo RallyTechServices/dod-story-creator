@@ -12,8 +12,10 @@ Ext.define('CustomApp', {
         {xtype:'tsinfolink'}
     ],
     config: {
-        releaseField: 'c_CodeDeploymentSchedule',
-        releaseFieldLabel: 'Deployment Schedule',
+        deploymentField: 'c_CodeDeploymentSchedule',
+        deploymentFieldLabel: 'Deployment Schedule for Stories',
+        deploymentTypeField: 'c_FeatureDeploymentType',
+        deploymentTypeFilter: '^N/A',
         storyTypeField: 'c_DoDStoryType',
         portfolioItemFeature: 'PortfolioItem/Feature',
         dodStatusPrefix: 'c_DoDStatus',
@@ -48,12 +50,19 @@ Ext.define('CustomApp', {
     _getFeatureGrid: function(){
         return this.down('#grid-feature');
     },
-    _buildFeatureGrid: function(releaseValue){
+    _buildFeatureGrid: function(deploymentValue){
         
         this._clearGrid(); 
-        var fetch = _.union(['FormattedID','Name','_ref','Release'], _.keys(this.exportFieldMapping)); 
-        
-        this.down('#display_box').add({
+        var fetch = _.union(['FormattedID','Name','_ref','Release',this.deploymentTypeField], _.keys(this.exportFieldMapping)),
+            deploymentTypeFilterRegex = new RegExp(this.deploymentTypeFilter),
+            deploymentTypeField = this.deploymentTypeField;
+
+        var currentFilters = this.currentFilters || [];
+        var filters = this._getReleaseFilters();
+        filters = filters.concat(currentFilters);
+        this.logger.log('_buildFeatureGrid', filters);
+
+        var grid = this.down('#display_box').add({
             xtype: 'rallygrid',
             itemId: 'rally-grid',
             showRowActionsColumn: false,
@@ -61,10 +70,8 @@ Ext.define('CustomApp', {
                 model: this.portfolioItemFeature,
                 fetch: fetch,
                 autoLoad: true,
-                filters: [{
-                    property: this.releaseField,
-                    value: releaseValue
-                }],
+                filters: filters,
+                limit: 'Infinity',
                 pageSize: 200
             },
           listeners: {
@@ -79,46 +86,55 @@ Ext.define('CustomApp', {
             },
             columnCfgs: this._getColumnCfgs2()
         });
+        grid.getStore().on('load', function(store){
+            store.filterBy(function(r){
+                return !(deploymentTypeFilterRegex.test(r.get(deploymentTypeField)));
+            });
+        });
+
     },
-    _fetchArtifactsWithStoryType: function(releaseValue){
+    _fetchArtifactsWithStoryType: function(deploymentValue){
         var deferred = Ext.create('Deft.Deferred');
         
         var storyTypeField = this.storyTypeField; 
-        var releaseField = this.releaseField; 
-        this.logger.log('_fetchArtifactsWithStoryType',releaseField,releaseValue,storyTypeField);
-        Ext.create('Rally.data.wsapi.Store',{
+        var deploymentField = this.deploymentField;
+
+        var filters = [{
+            property: storyTypeField,
+            operator: '!=',
+            value: ''
+        },{
+            property: deploymentField,
+            value: deploymentValue || ''
+        },{
+            property: 'PortfolioItem',
+            operator: '!=',
+            value: null
+        }];
+
+        filters = filters.concat(this._getReleaseFilters());
+
+        this.logger.log('_fetchArtifactsWithStoryType',deploymentField,deploymentValue,storyTypeField, filters);
+        var store = Ext.create('Rally.data.wsapi.Store',{
             model: 'HierarchicalRequirement',
-            autoLoad: true,
             context: {project: null},
-            filters: [{
-                property: storyTypeField,
-                operator: '!=',
-                value: ''
-            },{
-                property: releaseField,
-                value: releaseValue || ''
-            },{
-                property: 'PortfolioItem',
-                operator: '!=',
-                value: null
-            }],
-            fetch: ['FormattedID',storyTypeField, releaseField, 'PortfolioItem','ObjectID','Name'],
-            listeners: {
-                scope: this,
-                load: function(store, records, success){
-                    this.logger.log('_fetchArtifactsWithStoryType', records.length, success);
-                    if (success){
-                        this.featureArtifactHash = this._buildFeatureArtifactHash(records);
-                    } else {
-                        this.featureArtifactHash = null; 
-                        Rally.ui.notify.Notifier.showError('Could not load artifacts with release ' + releaseValue || 'null')
-                        this.logger.log('_fetchArtifactsWithStoryType failure');
-                    }
+            filters: filters,
+            limit: 'Infinity',
+            fetch: ['FormattedID',storyTypeField, deploymentField, 'PortfolioItem','ObjectID','Name']
+        });
+        store.load({
+            scope: this,
+            callback: function(records, operation, success){
+                this.logger.log('_fetchArtifactsWithStoryType', success, operation, records);
+                if (success){
+                    this.featureArtifactHash = this._buildFeatureArtifactHash(records);
                     deferred.resolve();
+                } else {
+                    this.featureArtifactHash = null;
+                    deferred.reject(operation);
                 }
             }
         });
-        
         return deferred; 
     },
     _buildFeatureArtifactHash: function(artifacts){
@@ -134,76 +150,21 @@ Ext.define('CustomApp', {
         return hash;  
     },
 
-    _getExportButton: function(){
-        return this.down('#btn-export');
-    },
-    _getUpdateButton: function(){
-        return this.down('#btn-update');
-    },
-    _getHeaderContainer: function(){
-        return this.down('#header');
-    },
-    _getFooterContainer: function(){
-        return this.down('#footer');
-    },
-    _getBodyContainer: function(){
-        return this.down('#display_box');
-    },
-    _getReleaseCombo: function(){
-        return this.down('#cb-release');
-    },
-    _initialize: function(){
-        this._getHeaderContainer().add({
-                xtype: 'rallyfieldvaluecombobox',
-                model: 'UserStory',
-                itemId: 'cb-release',
-                field: this.releaseField,
-                fieldLabel: this.releaseFieldLabel,
-                labelWidth: 150,
-                margin: 10,
-                labelAlign: 'right',
-                listeners: {
-                    scope: this,
-                    change: this._refreshDisplay 
-                }
-        });
-        this._getHeaderContainer().add({
-            xtype: 'component',
-            flex: 1
-        });
-        this._getHeaderContainer().add({
-                xtype: 'rallybutton',
-                text: 'Export',
-                itemId: 'btn-export',
-                margin: 10,
-                scope: this,
-                width: this.buttonWidth,
-                handler: this._export
-        });
-        
-       
-       this._getFooterContainer().add({
-           xtype: 'component',
-           flex: 1
-       });
-       this._getFooterContainer().add({
-            xtype: 'rallybutton',
-            text: 'Update',
-            itemId: 'btn-update',
-            width: this.buttonWidth,
-            margin: 10,
-            scope: this, 
-            handler: this._update
-        });
-    },
+
     _refreshDisplay: function(cb){
         this.setLoading(true);
-        var releaseValue = cb.getValue();  
-        this._fetchArtifactsWithStoryType(releaseValue).then({
+        var deploymentValue = this._getStoryDeploymentValue(),
+            release = this._getReleaseRecord();
+
+        this._fetchArtifactsWithStoryType(deploymentValue, release).then({
             scope: this,
             success: function(){
-                this._buildFeatureGrid(releaseValue);
+                this._buildFeatureGrid(deploymentValue);
                 this.setLoading(false);
+            },
+            failure: function(operation){
+                this.logger.log('failed to load artifacts with story type', operation);
+                Rally.ui.notify.Notifier.showError({message: 'Failed to load stories: ' + operation.error.errors.join(',')});
             }
         });
     },
@@ -211,7 +172,8 @@ Ext.define('CustomApp', {
         var grid = this._getGrid();
         this.logger.log('_export',grid);
 
-        var code_deployment = this._getReleaseCombo().getValue() || 'none';  
+        var code_deployment = this._getStoryDeploymentValue() || 'none';
+
         var filename = Ext.String.format('dod-status-{0}.csv',code_deployment);
 
         var csv = Rally.technicalservices.FileUtilities.getCSVFromGrid(grid).then({
@@ -309,14 +271,14 @@ Ext.define('CustomApp', {
     },
     _createStories: function(newArtifacts){
         //Create Stories 
-        var releaseValue = this._getReleaseCombo().getValue();
+        var deploymentValue = this._getStoryDeploymentValue();
         var store = this._getGrid().getStore();  
         var storyTypeField = this.storyTypeField; 
-        var releaseField = this.releaseField; 
+        var releaseField = this.deploymentField;
         
         var copyRequests = [];
         Ext.each(newArtifacts, function(a){
-            var cr = this._buildCopyRequest(a,storyTypeField,releaseField, releaseValue);
+            var cr = this._buildCopyRequest(a,storyTypeField,releaseField, deploymentValue);
             copyRequests.push(cr);
         },this);
         
@@ -340,24 +302,27 @@ Ext.define('CustomApp', {
     },
     
     _buildCopyRequest: function(newArtifact,storyTypeField, releaseField, releaseValue){
-        var cr = {};
-        cr[storyTypeField] = this._getStoryKey(newArtifact[storyTypeField]);  
-        cr['ObjectID'] = newArtifact.feature.ObjectID;
-        cr['FormattedID'] = newArtifact.feature.FormattedID;
-        cr['overrideFields'] ={};
-        cr.overrideFields['PortfolioItem'] = newArtifact.feature._ref;
-        cr.overrideFields[releaseField] = releaseValue;
-        cr.overrideFields['Name'] = newArtifact.feature.FormattedID;
-        //cr.overrideFields['Release'] = newArtifact.feature.Release;
+        //var cr = {};
+        //cr[storyTypeField] = this._getStoryKey(newArtifact[storyTypeField]);
+        //cr['ObjectID'] = newArtifact.feature.ObjectID;
+        //cr['FormattedID'] = newArtifact.feature.FormattedID;
+        //cr['overrideFields'] ={};
+        //cr.overrideFields['PortfolioItem'] = newArtifact.feature._ref;
+        //cr.overrideFields[releaseField] = releaseValue;
+        //cr.overrideFields['Name'] = newArtifact.feature.FormattedID;
+        ////cr.overrideFields['Release'] = newArtifact.feature.Release;
+
         var featureOid = newArtifact.feature.ObjectID;
+
         var overrideFields = {"PortfolioItem": newArtifact.feature._ref};
         overrideFields[releaseField] = releaseValue;
-        var identifier = this._getStoryKey(newArtifact[storyTypeField]) + ' for ' + newArtifact.feature.FormattedID;
+
         var cr = Ext.create('Rally.technicalservices.data.CopyRequest',{
             keyFieldValue: this._getStoryKey(newArtifact[storyTypeField]),
             overrideFields: overrideFields,
             parentOid: featureOid,
-            identifier: identifier,
+            feature: newArtifact.feature.FormattedID,
+            storyType: this._getStoryKey(newArtifact[storyTypeField]),
             transformers: {
                 "Name": function(artifact){
                     return artifact.get('Name').replace("US Template",newArtifact.feature.FormattedID);
@@ -406,6 +371,23 @@ Ext.define('CustomApp', {
     _getStoryTypeFromDisplayName: function(displayName){
         return displayName.replace(this.dodStatusDisplayPrefix,'',"i");
     },
+    _getReleaseFilters: function(){
+        var filters = [],
+            release = this._getReleaseRecord();
+
+        if (release){
+            filters = filters.concat([{   //NOTE:  Customer has requested that the release only be filtered by Name only, NOT Name & ReleaseStartDate & ReleaseDate
+                property: 'Release.Name',
+                value: release.get('Name')
+            }]);
+        } else {
+            filters.push({
+                property: 'Release',
+                value: null
+            });
+        }
+        return filters;
+    },
     _fetchDoDFields: function(){
         var deferred = Ext.create('Deft.Deferred');
         var dod_fields = [];  
@@ -425,6 +407,32 @@ Ext.define('CustomApp', {
             }
         });
         return deferred;  
+    },
+    _filter: function(btn){
+        this.logger.log('_filter', this.filterFields);
+        Ext.create('Rally.technicalservices.dialog.Filter',{
+            filters: this.currentFilters,
+            title: 'Filter Features By',
+            app: this,
+            listeners: {
+                scope: this,
+                customFilter: function(filters){
+                    this.logger.log('_filter event fired',filters);
+                    this.currentFilters = filters;
+                    if (filters.length == 0){
+                        btn.removeCls('primary');
+                        btn.addCls('secondary');
+                        this.down('#filter_box').update('');
+                    } else {
+                        btn.removeCls('secondary');
+                        btn.addCls('primary');
+                        this.down('#filter_box').update(this.currentFilters);
+                    }
+
+                    this._refreshDisplay();
+                }
+            }
+        });
     },
     _createGrid: function(store){
         if (this._getGrid()){
@@ -466,41 +474,7 @@ Ext.define('CustomApp', {
         }
     },
 
-    _fetchFeatures: function(releaseField, releaseValue){
-        var deferred = Ext.create('Deft.Deferred');
-        var dod_fields = [];
-        Ext.each(this.dodFeatureFields, function(f){
-            dod_fields.push(f.name)
-        });
-        var fetch_fields = _.union(['FormattedID','Name','_ref','Release'], dod_fields); 
-        this.logger.log('_fetchFeatures',fetch_fields, releaseField,releaseValue);
-        Ext.create('Rally.data.wsapi.Store',{
-            fetch: fetch_fields,
-            model: this.portfolioItemL1,
-            autoLoad: true,
-            filters: [{
-                property: releaseField,
-                value: releaseValue
-            }],
-            listeners: {
-                scope: this,
-                load: function(store, records, success){
-                    this.logger.log('_fetchFeatures load', records.length, success);
-                    var feature_oids = _.map(records, function(r){return r.get('ObjectID')});
-                    this.featureRecords = records; 
-                    this._fetchChildStories(feature_oids, releaseValue).then({
-                        scope: this,
-                        success: function(story_records){
-                            this.logger.log('_fetchChildStories', feature_oids, story_records);
-                            var store = this._buildCustomStore(records, story_records)
-                            deferred.resolve(store);
-                        }
-                    });
-                }
-            }
-        });
-        return deferred;  
-    },
+
     _fetchChildStories: function(feature_oids, releaseValue){
         var deferred = Ext.create('Deft.Deferred');
         
@@ -510,14 +484,14 @@ Ext.define('CustomApp', {
             };
         find[this.storyTypeField] = {$ne: null};
         if (releaseValue){
-            find[this.releaseField] = releaseValue;
+            find[this.deploymentField] = releaseValue;
         } else {
-            find[this.releaseField] = null;
+            find[this.deploymentField] = null;
         }
-      //  find[this.releaseField] = releaseValue;  
+      //  find[this.deploymentField] = releaseValue;
         this.logger.log('_fetchChildStories releaseValue',releaseValue, releaseValue == null);
         var chunker = Ext.create('Rally.technicalservices.data.Chunker',{
-            fetch: ['FormattedID',this.storyTypeField, this.releaseField, 'PortfolioItem','ObjectID','Name'],
+            fetch: ['FormattedID',this.storyTypeField, this.deploymentField, 'PortfolioItem','ObjectID','Name'],
             find: find,
             chunkField: "PortfolioItem",
             chunkOids: feature_oids
@@ -587,16 +561,17 @@ Ext.define('CustomApp', {
                         }
                     }];
                } 
-            },{text:'Feature',
-             dataIndex:'FormattedID',
-             flex: 1,
-             renderer: function(v,m,r){
-                 var link_text= Ext.String.format('{0}: {1}', v, r.get('Name')); 
-                 return Rally.nav.DetailLink.getLink({record: r.get('_ref'), text: link_text});
-             },
-             exportRenderer: function(v,m,r){
-                 return Ext.String.format('{0}: {1}', v, r.get('Name')); 
-             }
+            },{
+                text:'Feature',
+                dataIndex:'FormattedID',
+                flex: 1,
+                renderer: function(v,m,r){
+                    var link_text= Ext.String.format('{0}: {1}', v, r.get('Name'));
+                    return Rally.nav.DetailLink.getLink({record: r.get('_ref'), text: link_text});
+                },
+                exportRenderer: function(v,m,r){
+                    return Ext.String.format('{0}: {1}', v, r.get('Name'));
+                }
           }];
         
         Ext.each(this.dodFeatureFields, function(f){
@@ -610,6 +585,11 @@ Ext.define('CustomApp', {
                       if (story){
                         var link_text= Ext.String.format('{0}', story.get('FormattedID')); 
                         return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ story.get('ObjectID'), text: link_text});
+                      }
+                        console.log('v',v);
+                      if (v == 'Required' || v=='Exemption Requested'){
+                         // m.tdCls = "highlighted-status";
+                          m.style = "background-color:yellow;";
                       }
                       return v || noEntryText;
 
@@ -628,4 +608,109 @@ Ext.define('CustomApp', {
         },this);
         return columns;
     },
+    _getExportButton: function(){
+        return this.down('#btn-export');
+    },
+    _getUpdateButton: function(){
+        return this.down('#btn-update');
+    },
+    _getHeaderContainer: function(){
+        return this.down('#header');
+    },
+    _getFooterContainer: function(){
+        return this.down('#footer');
+    },
+    _getBodyContainer: function(){
+        return this.down('#display_box');
+    },
+    _getReleaseRecord: function(){
+        return this.down('#cb-release').getRecord();
+    },
+    _getStoryDeploymentValue: function(){
+        return this.down('#cb-deployment').getValue() || null;
+    },
+    _initialize: function(){
+
+        this._getHeaderContainer().add({
+            xtype: 'rallyreleasecombobox',
+            fieldLabel: 'Release',
+            itemId: 'cb-release',
+            context: {
+                project: this.getContext().getProject()._ref,
+                projectScopeDown: this.getContext().getProjectScopeDown(),
+                projectScopeUp: false
+            },
+            allowNoEntry: true,
+            labelAlign: 'right',
+            margin: 10,
+            width: 300,
+            listeners: {
+                scope: this,
+                change: this._refreshDisplay
+
+            }
+        });
+
+
+
+        this._getHeaderContainer().add({
+            xtype: 'rallyfieldvaluecombobox',
+            model: 'UserStory',
+            itemId: 'cb-deployment',
+            field: this.deploymentField,
+            fieldLabel: this.deploymentFieldLabel,
+            labelWidth: 200,
+            margin: 10,
+            labelAlign: 'right',
+            listeners: {
+                scope: this,
+                change: this._refreshDisplay
+            }
+        });
+
+        this._getHeaderContainer().add({
+            xtype: 'rallybutton',
+            itemId: 'btn-filter',
+            scope: this,
+            cls: 'small-icon secondary',
+            iconCls: 'icon-filter',
+            margin: 10,
+            handler: this._filter
+        });
+
+        this._getHeaderContainer().add({
+            xtype:'container',
+            itemId: 'filter_box',
+            margin: 10,
+            tpl:'<div class="ts-filter"><i>Filters:&nbsp;<tpl for=".">{displayProperty} {operator} {displayValue}&nbsp;&nbsp;&nbsp;&nbsp;</tpl></i></div>'});
+
+        this._getHeaderContainer().add({
+            xtype: 'component',
+            flex: 1
+        });
+        this._getHeaderContainer().add({
+            xtype: 'rallybutton',
+            text: 'Export',
+            itemId: 'btn-export',
+            margin: 10,
+            scope: this,
+            width: this.buttonWidth,
+            handler: this._export
+        });
+
+
+        this._getFooterContainer().add({
+            xtype: 'component',
+            flex: 1
+        });
+        this._getFooterContainer().add({
+            xtype: 'rallybutton',
+            text: 'Update',
+            itemId: 'btn-update',
+            width: this.buttonWidth,
+            margin: 10,
+            scope: this,
+            handler: this._update
+        });
+    }
 });

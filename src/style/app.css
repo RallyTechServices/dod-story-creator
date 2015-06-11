@@ -24,3 +24,8 @@
 .rightbutton {
 	align: 'right';
 }
+
+.highlighted-status {
+    background: 'yellow';
+    background-color: 'yellow';
+}
