@@ -30,12 +30,31 @@ Ext.define('Rally.technicalservices.dialog.TemplateCopier', {
     
     _buildPreview: function(){
         this.logger.log('_buildPreview', this.copyRequests);
+        var header = Ext.String.format('{0} Total Stories to Create', this.copyRequests.length);
         var ct = this.add({
-            xtype: 'container',
+            xtype: 'rallygrid',
             layout: {
                 align: 'center'
             },
-            tpl: '<b>Stories to Create:</b><br/><br/><tpl for=".">{identifier}<br/></tpl>'
+            store: Ext.create('Rally.data.custom.Store', {
+                data: this.copyRequests,
+                pageSize: this.copyRequests.length,
+                groupField: 'feature',
+                groupDir: 'ASC',
+                remoteSort: false,
+                getGroupString: function(record) {
+                    return ' Stories to create for ' + record.get('feature');
+                }
+            }),
+            showPagingToolbar: false,
+            features: [{
+                ftype: 'groupingsummary',
+                groupHeaderTpl: '{rows.length} {name}',
+                startCollapsed: false
+            }],
+            columnCfgs: [{dataIndex: 'storyType', text: header, flex: 1}],
+            maxHeight: 300,
+            margin: 10
         });
         ct.update(this.copyRequests);
     },
