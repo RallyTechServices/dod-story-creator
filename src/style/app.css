@@ -20,12 +20,11 @@
 	background-color: 'green'
 	
 }
-
 .rightbutton {
 	align: 'right';
 }
-
 .highlighted-status {
     background: 'yellow';
     background-color: 'yellow';
 }
+.not-accepted a:link { background-color:yellow;}
