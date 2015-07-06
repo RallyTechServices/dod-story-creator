@@ -261,14 +261,12 @@ Ext.define('CustomApp', {
     },
     _createStories: function(newArtifacts){
         //Create Stories 
-        var deploymentValue = this._getStoryDeploymentValue();
-        var store = this._getGrid().getStore();  
+        var store = this._getGrid().getStore();
         var storyTypeField = this.storyTypeField; 
-        var releaseField = this.deploymentField;
-        
+
         var copyRequests = [];
         Ext.each(newArtifacts, function(a){
-            var cr = this._buildCopyRequest(a,storyTypeField,releaseField, deploymentValue);
+            var cr = this._buildCopyRequest(a,storyTypeField);
             copyRequests.push(cr);
         },this);
         
@@ -291,21 +289,10 @@ Ext.define('CustomApp', {
         }
     },
     
-    _buildCopyRequest: function(newArtifact,storyTypeField, releaseField, releaseValue){
-        //var cr = {};
-        //cr[storyTypeField] = this._getStoryKey(newArtifact[storyTypeField]);
-        //cr['ObjectID'] = newArtifact.feature.ObjectID;
-        //cr['FormattedID'] = newArtifact.feature.FormattedID;
-        //cr['overrideFields'] ={};
-        //cr.overrideFields['PortfolioItem'] = newArtifact.feature._ref;
-        //cr.overrideFields[releaseField] = releaseValue;
-        //cr.overrideFields['Name'] = newArtifact.feature.FormattedID;
-        ////cr.overrideFields['Release'] = newArtifact.feature.Release;
-
+    _buildCopyRequest: function(newArtifact,storyTypeField){
         var featureOid = newArtifact.feature.ObjectID;
 
         var overrideFields = {"PortfolioItem": newArtifact.feature._ref};
-        overrideFields[releaseField] = releaseValue;
 
         var cr = Ext.create('Rally.technicalservices.data.CopyRequest',{
             keyFieldValue: this._getStoryKey(newArtifact[storyTypeField]),
@@ -469,36 +456,36 @@ Ext.define('CustomApp', {
     },
 
 
-    _fetchChildStories: function(feature_oids, releaseValue){
-        var deferred = Ext.create('Deft.Deferred');
-        
-        var find = {
-                "_TypeHierarchy": 'HierarchicalRequirement',
-                "__At": "current"
-            };
-        find[this.storyTypeField] = {$ne: null};
-        if (releaseValue){
-            find[this.deploymentField] = releaseValue;
-        } else {
-            find[this.deploymentField] = null;
-        }
-      //  find[this.deploymentField] = releaseValue;
-        this.logger.log('_fetchChildStories releaseValue',releaseValue, releaseValue == null);
-        var chunker = Ext.create('Rally.technicalservices.data.Chunker',{
-            fetch: ['FormattedID',this.storyTypeField, this.deploymentField, 'PortfolioItem','ObjectID','Name'],
-            find: find,
-            chunkField: "PortfolioItem",
-            chunkOids: feature_oids
-        });
-        chunker.load().then({
-            scope: this,
-            success: function(story_records){
-                this.logger.log('_fetchChildStories', story_records.length, story_records);
-                deferred.resolve(story_records);
-            }
-        });
-        return deferred;
-    },
+    //_fetchChildStories: function(feature_oids, releaseValue){
+    //    var deferred = Ext.create('Deft.Deferred');
+    //
+    //    var find = {
+    //            "_TypeHierarchy": 'HierarchicalRequirement',
+    //            "__At": "current"
+    //        };
+    //    find[this.storyTypeField] = {$ne: null};
+    //    if (releaseValue){
+    //        find[this.deploymentField] = releaseValue;
+    //    } else {
+    //        find[this.deploymentField] = null;
+    //    }
+    //  //  find[this.deploymentField] = releaseValue;
+    //    this.logger.log('_fetchChildStories releaseValue',releaseValue, releaseValue == null);
+    //    var chunker = Ext.create('Rally.technicalservices.data.Chunker',{
+    //        fetch: ['FormattedID',this.storyTypeField, this.deploymentField, 'PortfolioItem','ObjectID','Name'],
+    //        find: find,
+    //        chunkField: "PortfolioItem",
+    //        chunkOids: feature_oids
+    //    });
+    //    chunker.load().then({
+    //        scope: this,
+    //        success: function(story_records){
+    //            this.logger.log('_fetchChildStories', story_records.length, story_records);
+    //            deferred.resolve(story_records);
+    //        }
+    //    });
+    //    return deferred;
+    //},
     _findStoryForFeature: function(feature, artifactFeatureHash, storyTypeField, storyTypeValue){
         var featureOid = feature.get('ObjectID');
         var artifacts = artifactFeatureHash[featureOid.toString()];
