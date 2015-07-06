@@ -51,7 +51,7 @@ Ext.define('CustomApp', {
     _getFeatureGrid: function(){
         return this.down('#grid-feature');
     },
-    _buildFeatureGrid: function(deploymentValue){
+    _buildFeatureGrid: function(){
         
         this._clearGrid(); 
         var fetch = _.union(['FormattedID','Name','_ref','Release',this.deploymentTypeField], _.keys(this.exportFieldMapping)),
@@ -61,6 +61,7 @@ Ext.define('CustomApp', {
         var currentFilters = this.currentFilters || [];
         var filters = this._getReleaseFilters();
         filters = filters.concat(currentFilters);
+
         this.logger.log('_buildFeatureGrid', filters);
 
         var grid = this.down('#display_box').add({
@@ -94,34 +95,28 @@ Ext.define('CustomApp', {
         });
 
     },
-    _fetchArtifactsWithStoryType: function(deploymentValue){
+    _fetchArtifactsWithStoryType: function(){
         var deferred = Ext.create('Deft.Deferred');
         
-        var storyTypeField = this.storyTypeField; 
-        var deploymentField = this.deploymentField;
+        var storyTypeField = this.storyTypeField;
 
         var filters = [{
             property: storyTypeField,
             operator: '!=',
             value: ''
         },{
-            property: deploymentField,
-            value: deploymentValue || ''
-        },{
             property: 'PortfolioItem',
             operator: '!=',
             value: null
         }];
 
-        filters = filters.concat(this._getReleaseFilters());
-
-        this.logger.log('_fetchArtifactsWithStoryType',deploymentField,deploymentValue,storyTypeField, filters);
+        this.logger.log('_fetchArtifactsWithStoryType',storyTypeField, filters.toString());
         var store = Ext.create('Rally.data.wsapi.Store',{
             model: 'HierarchicalRequirement',
             context: {project: null},
             filters: filters,
             limit: 'Infinity',
-            fetch: ['FormattedID',storyTypeField, deploymentField, 'PortfolioItem','ObjectID','Name']
+            fetch: ['FormattedID',storyTypeField, 'PortfolioItem','ObjectID','Name','ScheduleState']
         });
         store.load({
             scope: this,
@@ -150,17 +145,13 @@ Ext.define('CustomApp', {
         });
         return hash;  
     },
-
-
     _refreshDisplay: function(cb){
         this.setLoading(true);
-        var deploymentValue = this._getStoryDeploymentValue(),
-            release = this._getReleaseRecord();
 
-        this._fetchArtifactsWithStoryType(deploymentValue, release).then({
+        this._fetchArtifactsWithStoryType().then({
             scope: this,
             success: function(){
-                this._buildFeatureGrid(deploymentValue);
+                this._buildFeatureGrid();
                 this.setLoading(false);
             },
             failure: function(operation){
@@ -173,9 +164,7 @@ Ext.define('CustomApp', {
         var grid = this._getGrid();
         this.logger.log('_export',grid);
 
-        var code_deployment = this._getStoryDeploymentValue() || 'none';
-
-        var filename = Ext.String.format('dod-status-{0}.csv',code_deployment);
+        var filename = Ext.String.format('dod-status.csv');
 
         var csv = Rally.technicalservices.FileUtilities.getCSVFromGrid(grid).then({
             scope: this,
@@ -519,8 +508,9 @@ Ext.define('CustomApp', {
         }
         Ext.each(artifacts, function(artifact){
             if (artifact.get('c_DoDStoryType') === storyTypeValue){
-               artifactFound = artifact; 
-               return false;  
+                artifactFound = artifactFound || [];
+                artifactFound.push(artifact);
+               //return false;
            } 
         });
         return artifactFound;
@@ -581,23 +571,42 @@ Ext.define('CustomApp', {
         
         Ext.each(this.dodFeatureFields, function(f){
             var col = {
-                  //xtype: 'container',
                   text: this._getStoryTypeFromDisplayName(f.displayName),  //.replace(this.dodStatusDisplayPrefix,'',"i"),
                   dataIndex: f.name,
                   renderer: function(v,m,r){
-                      var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i");
-                      var story = findStory(r, featureArtifactHash,f.name, storyTypeValue);
+                      var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i"),
+                          story = findStory(r, featureArtifactHash,f.name, storyTypeValue),
+                          txt = null,
+                          all_accepted = true;
+
                       if (story){
-                        var link_text= Ext.String.format('{0}', story.get('FormattedID')); 
-                        return Rally.nav.DetailLink.getLink({record: '/hierarchicalrequirement/'+ story.get('ObjectID'), text: link_text});
+                          var links = [];
+
+                          _.each(story, function(s){
+                              var style_str = '';
+                              console.log('s', s.get('FormattedID'), s.get('ScheduleState'));
+                              if (s.get('ScheduleState') != 'Accepted'){
+                                  style_str = 'class="not-accepted"';
+                              }
+
+                              links.push(Ext.String.format('<div {0}>{1}</div>',style_str, Rally.nav.DetailLink.getLink({
+                                  record: '/hierarchicalrequirement/'+ s.get('ObjectID'),
+                                  text: s.get('FormattedID')})));
+                          });
+
+                          if (links.length > 0){
+                            txt = links.join('');
+                          }
+                          return txt;
                       }
-                        console.log('v',v);
-                      if (v == 'Required' || v=='Exemption Requested'){
-                         // m.tdCls = "highlighted-status";
+
+                      if (v == 'Required' || v =='Exemption Requested'){
                           m.style = "background-color:yellow;";
                       }
-                      return v || noEntryText;
-
+                      //if (all_accepted == false){
+                      //    m.style = "background-color:yellow;";
+                      //}
+                      return  v || noEntryText;
                   },
                   exportRenderer: function(v,m,r){
                       var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i");
@@ -632,7 +641,7 @@ Ext.define('CustomApp', {
         return this.down('#cb-release').getRecord();
     },
     _getStoryDeploymentValue: function(){
-        return this.down('#cb-deployment').getValue() || null;
+        return null;
     },
     _initialize: function(){
 
@@ -651,7 +660,8 @@ Ext.define('CustomApp', {
             width: 300,
             listeners: {
                 scope: this,
-                change: this._refreshDisplay
+                change: this._refreshDisplay,
+                ready: this._refreshDisplay
 
             },
             storeConfig: {
@@ -659,23 +669,6 @@ Ext.define('CustomApp', {
                     scope: this,
                     load: this._addAllOption
                 }
-            }
-        });
-
-
-
-        this._getHeaderContainer().add({
-            xtype: 'rallyfieldvaluecombobox',
-            model: 'UserStory',
-            itemId: 'cb-deployment',
-            field: this.deploymentField,
-            fieldLabel: this.deploymentFieldLabel,
-            labelWidth: 200,
-            margin: 10,
-            labelAlign: 'right',
-            listeners: {
-                scope: this,
-                change: this._refreshDisplay
             }
         });
 
@@ -726,5 +719,5 @@ Ext.define('CustomApp', {
     },
     _addAllOption: function(store){
         store.add({Name: this.allReleasesText, formattedName: this.allReleasesText});
-    },
+    }
 });
