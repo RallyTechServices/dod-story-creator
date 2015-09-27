@@ -557,6 +557,7 @@ Ext.define('CustomApp', {
           }];
         
         Ext.each(this.dodFeatureFields, function(f){
+            var state_prefixes = {'In-Progress': 'P'};
             var col = {
                   text: this._getStoryTypeFromDisplayName(f.displayName),  //.replace(this.dodStatusDisplayPrefix,'',"i"),
                   dataIndex: f.name,
@@ -571,14 +572,26 @@ Ext.define('CustomApp', {
 
                           _.each(story, function(s){
                               var style_str = '';
-                              console.log('s', s.get('FormattedID'), s.get('ScheduleState'));
-                              if (s.get('ScheduleState') != 'Accepted'){
+                              var state = s.get('ScheduleState');
+                              
+                              console.log('s', s.get('FormattedID'), state);
+                              
+                              if (state != 'Accepted'){
                                   style_str = 'class="not-accepted"';
                               }
-
-                              links.push(Ext.String.format('<div {0}>{1}</div>',style_str, Rally.nav.DetailLink.getLink({
-                                  record: '/hierarchicalrequirement/'+ s.get('ObjectID'),
-                                  text: s.get('FormattedID')})));
+                              
+                              var story_text = s.get('FormattedID');
+                              var state_prefix = state_prefixes[state] || state.charAt(0);
+                                                            
+                              links.push(Ext.String.format('<div {0}>{1} {2}</div>',
+                                  style_str, 
+                                  Rally.nav.DetailLink.getLink({
+                                      record: '/hierarchicalrequirement/'+ s.get('ObjectID'),
+                                      text: story_text
+                                  }),
+                                 Ext.String.format('<span class="schedule-state-wrapper"><span state-data="{0}" class="schedule-state current-state">{1}</span></span>', state, state_prefix )
+                              ));
+                                  
                           });
 
                           if (links.length > 0){

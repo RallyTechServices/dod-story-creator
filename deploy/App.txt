@@ -3,11 +3,11 @@
 <head>
     <title>Feature Definition of Done Story Creator</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Sep 27 2015 15:26:37 GMT-0700 (PDT) -->
+    <!--  Build Date: Sun Sep 27 2015 16:12:12 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Sep 27 2015 15:26:37 GMT-0700 (PDT)";
-        var CHECKSUM = 123058810994;
+        var APP_BUILD_DATE = "Sun Sep 27 2015 16:12:12 GMT-0700 (PDT)";
+        var CHECKSUM = 125103841446;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -2189,6 +2189,7 @@ Ext.define('CustomApp', {
           }];
         
         Ext.each(this.dodFeatureFields, function(f){
+            var state_prefixes = {'In-Progress': 'P'};
             var col = {
                   text: this._getStoryTypeFromDisplayName(f.displayName),  //.replace(this.dodStatusDisplayPrefix,'',"i"),
                   dataIndex: f.name,
@@ -2203,14 +2204,26 @@ Ext.define('CustomApp', {
 
                           _.each(story, function(s){
                               var style_str = '';
-                              console.log('s', s.get('FormattedID'), s.get('ScheduleState'));
-                              if (s.get('ScheduleState') != 'Accepted'){
+                              var state = s.get('ScheduleState');
+                              
+                              console.log('s', s.get('FormattedID'), state);
+                              
+                              if (state != 'Accepted'){
                                   style_str = 'class="not-accepted"';
                               }
-
-                              links.push(Ext.String.format('<div {0}>{1}</div>',style_str, Rally.nav.DetailLink.getLink({
-                                  record: '/hierarchicalrequirement/'+ s.get('ObjectID'),
-                                  text: s.get('FormattedID')})));
+                              
+                              var story_text = s.get('FormattedID');
+                              var state_prefix = state_prefixes[state] || state.charAt(0);
+                                                            
+                              links.push(Ext.String.format('<div {0}>{1} {2}</div>',
+                                  style_str, 
+                                  Rally.nav.DetailLink.getLink({
+                                      record: '/hierarchicalrequirement/'+ s.get('ObjectID'),
+                                      text: story_text
+                                  }),
+                                 Ext.String.format('<span class="schedule-state-wrapper"><span state-data="{0}" class="schedule-state current-state">{1}</span></span>', state, state_prefix )
+                              ));
+                                  
                           });
 
                           if (links.length > 0){
@@ -2386,6 +2399,14 @@ Ext.define('CustomApp', {
 }
 .not-accepted a:link { background-color:yellow;}
 
+.schedule-state-wrapper .schedule-state.current-state{
+    padding: 1px 2px 1px 2px;
+}
+
+.schedule-state-wrapper .schedule-state {
+    float: none;
+    font-size: 10px;
+}
     </style>
 
 </head>
