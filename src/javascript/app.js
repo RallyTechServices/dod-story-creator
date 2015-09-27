@@ -166,7 +166,7 @@ Ext.define('CustomApp', {
 
         var filename = Ext.String.format('dod-status.csv');
 
-        var csv = Rally.technicalservices.FileUtilities.getCSVFromGrid(grid).then({
+        var csv = Rally.technicalservices.FileUtilities.getCSVFromGrid(this,grid).then({
             scope: this,
             success: function(csv){
                 if (csv && csv.length > 0){
@@ -442,7 +442,7 @@ Ext.define('CustomApp', {
                 Ext.create('Ext.grid.plugin.CellEditing', {
                     clicksToEdit: 1
                 })
-            ],
+            ]
         });
         
     },
@@ -598,7 +598,13 @@ Ext.define('CustomApp', {
                   exportRenderer: function(v,m,r){
                       var storyTypeValue = f.displayName.replace(dodStatusDisplayPrefix,'',"i");
                       var story = findStory(r, featureArtifactHash,f.name, storyTypeValue);
+                      if ( Ext.isArray(story) ) {
+                        return Ext.Array.map(story, function(s) {
+                            return s.get('FormattedID');
+                        }). join(';');
+                      }
                       if (story){
+                        console.log('story', story);
                         return Ext.String.format('{0}', story.get('FormattedID')); 
                       }
                       return v || noEntryText;
