@@ -37,7 +37,10 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                 if (Ext.Array.contains(whitelistFields, attr_def.ElementName)){
                     filterableFields.push(f);
                 } else {
-                    console.log('aatr',attr_def);
+                    console.log('aatr', attr_def.Name,attr_def);
+                    if ( attr_def.Name == "Formatted ID") {
+                        filterableFields.push(f);
+                    }
                     if (dropdownListFields && attr_def.Constrained &&
                         attr_def.AttributeType == 'STRING'){
                         filterableFields.push(f);
@@ -73,7 +76,8 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
         },this);
 
         return Ext.create('Rally.data.custom.Store',{
-            data: fields
+            data: fields,
+            sorters: [{property:'displayName'}]
         });
     },
     _addNewRow: function(property, operator, value) {
@@ -362,7 +366,7 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
     _getValueControl: function(field, value, item_id){
         this.logger.log('_getValueControl',field)
 
-        var ctl = {xtype: 'rallytextfield'};
+        var ctl = {xtype: 'rallytextfield', height: 23};
         var type = field.get('attributeType');
         var hasAllowedValues = ((type == 'STATE') || (type=='RATING') || field.get('isConstrained'));
         var schema = field.get('schemaType');
@@ -433,8 +437,15 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                     };
                 }
                 break;
-            case 'DECIMAL':
             case 'INTEGER':
+                if (field_name != "FormattedID" ) {
+                    ctl = {
+                        xtype: 'rallynumberfield',
+                        allowBlank: false
+                    }
+                }
+                break;
+            case 'DECIMAL':
             case 'QUANTITY':
                 ctl = {
                     xtype: 'rallynumberfield',
