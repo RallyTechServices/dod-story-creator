@@ -59,8 +59,20 @@ Ext.define('CustomApp', {
             deploymentTypeField = this.deploymentTypeField;
 
         var currentFilters = this.currentFilters || [];
+        
+        var clean_filters = Ext.Array.map(Ext.clone(currentFilters), function(filter){
+            if ( filter.fieldName == "State" ) {
+                return Ext.merge(filter, {
+                    property:'State.Name',
+                    value: filter.displayValue
+                })
+            }
+            
+            return filter;
+        });
+        
         var filters = this._getReleaseFilters();
-        filters = filters.concat(currentFilters);
+        filters = filters.concat(clean_filters);
 
         this.logger.log('_buildFeatureGrid', filters);
 

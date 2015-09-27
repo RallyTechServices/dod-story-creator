@@ -249,14 +249,17 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
         var filters = [];
         Ext.each(this.down('#ct-rows').items.items, function(item){
             if (this.down('#cb-filter-operator')){
-                var property = item.down('#cb-filter-field').getValue();
+                var field_name = item.down('#cb-filter-field').getValue();
                 var operator = item.down('#cb-filter-operator').getValue();
                 var val = this._cleanValue( item.down('#cb-filter-value').getValue() );
                 var display_property = item.down('#cb-filter-field').getRecord().get('displayName');
                 var display_value = item.down('#cb-filter-value').displayValue || val;
 
+                var property = field_name;
+
                 if (property && operator) {
                     filters.push({
+                        fieldName: field_name,
                         property: property,
                         operator: operator,
                         value: val,
