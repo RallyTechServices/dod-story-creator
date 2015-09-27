@@ -56,7 +56,11 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
 
         if (filters && filters.length > 0){
             Ext.each(filters, function(filter){
-                this._addNewRow(filter.property, filter.operator, filter.value);
+                var property = filter.fieldName || filter.property;
+                var value = filter.selectedValue || filter.value;
+                var operator = filter.operator;
+                
+                this._addNewRow(property, operator, value);
             },this);
         } else {
             this._addNewRow();
@@ -251,11 +255,17 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
             if (this.down('#cb-filter-operator')){
                 var field_name = item.down('#cb-filter-field').getValue();
                 var operator = item.down('#cb-filter-operator').getValue();
-                var val = this._cleanValue( item.down('#cb-filter-value').getValue() );
+                var selected_value = this._cleanValue( item.down('#cb-filter-value').getValue() );
                 var display_property = item.down('#cb-filter-field').getRecord().get('displayName');
                 var display_value = item.down('#cb-filter-value').displayValue || val;
 
                 var property = field_name;
+                var val = selected_value;
+                
+                if ( field_name == "State" ) {
+                    property = "State.Name";
+                    val = display_value;
+                }
 
                 if (property && operator) {
                     filters.push({
@@ -264,7 +274,8 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                         operator: operator,
                         value: val,
                         displayProperty: display_property,
-                        displayValue: display_value
+                        displayValue: display_value,
+                        selectedValue: selected_value
                     });
                 }
             }
