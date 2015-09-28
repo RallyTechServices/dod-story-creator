@@ -99,6 +99,8 @@ Ext.define('CustomApp', {
     _fetchArtifactsWithStoryType: function(){
         var deferred = Ext.create('Deft.Deferred');
         
+        this.setLoading(true);
+        
         var storyTypeField = this.storyTypeField;
 
         var filters = [{
@@ -147,7 +149,6 @@ Ext.define('CustomApp', {
         return hash;  
     },
     _refreshDisplay: function(cb){
-        this.setLoading(true);
 
         this._fetchArtifactsWithStoryType().then({
             scope: this,
@@ -158,6 +159,7 @@ Ext.define('CustomApp', {
             failure: function(operation){
                 this.logger.log('failed to load artifacts with story type', operation);
                 Rally.ui.notify.Notifier.showError({message: 'Failed to load stories: ' + operation.error.errors.join(',')});
+                this.setLoading(false);
             }
         });
     },
@@ -400,6 +402,8 @@ Ext.define('CustomApp', {
                 scope: this,
                 customFilter: function(filters){
                     this.logger.log('_filter event fired',filters);
+                    this._clearGrid();
+                    
                     this.currentFilters = filters;
                     if (filters.length == 0){
                         btn.removeCls('primary');

@@ -3,11 +3,11 @@
 <head>
     <title>Feature Definition of Done Story Creator</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Sep 27 2015 16:56:00 GMT-0700 (PDT) -->
+    <!--  Build Date: Sun Sep 27 2015 17:06:23 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Sep 27 2015 16:56:00 GMT-0700 (PDT)";
-        var CHECKSUM = 127448976942;
+        var APP_BUILD_DATE = "Sun Sep 27 2015 17:06:23 GMT-0700 (PDT)";
+        var CHECKSUM = 127646260335;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -1756,6 +1756,8 @@ Ext.define('CustomApp', {
     _fetchArtifactsWithStoryType: function(){
         var deferred = Ext.create('Deft.Deferred');
         
+        this.setLoading(true);
+        
         var storyTypeField = this.storyTypeField;
 
         var filters = [{
@@ -1804,7 +1806,6 @@ Ext.define('CustomApp', {
         return hash;  
     },
     _refreshDisplay: function(cb){
-        this.setLoading(true);
 
         this._fetchArtifactsWithStoryType().then({
             scope: this,
@@ -1815,6 +1816,7 @@ Ext.define('CustomApp', {
             failure: function(operation){
                 this.logger.log('failed to load artifacts with story type', operation);
                 Rally.ui.notify.Notifier.showError({message: 'Failed to load stories: ' + operation.error.errors.join(',')});
+                this.setLoading(false);
             }
         });
     },
@@ -2057,6 +2059,8 @@ Ext.define('CustomApp', {
                 scope: this,
                 customFilter: function(filters){
                     this.logger.log('_filter event fired',filters);
+                    this._clearGrid();
+                    
                     this.currentFilters = filters;
                     if (filters.length == 0){
                         btn.removeCls('primary');
